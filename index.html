@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#101827" />
+  <title>ElectroStock  Inventory Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card glass">
+      <div class="brand-mark logo-slot" id="authBrandLogo">E<span>+</span></div>
+      <p class="eyebrow">PERSONAL INVENTORY</p>
+      <h1 id="authHeading">Welcome to <span>ElectroStock</span></h1>
+      <p class="muted" id="authSubtitle">Sign in to manage your business inventory.</p>
+      <form id="loginForm">
+        <label id="fullNameLabel" class="hidden">Full name<input id="fullName" type="text" placeholder="e.g. Tolu Aderibigbe" autocomplete="name" maxlength="100" disabled></label>
+        <label>Email address<input id="email" type="email" placeholder="you@example.com" required autocomplete="email"></label>
+        <label>Password<input id="password" type="password" placeholder="Enter your password" required autocomplete="current-password" minlength="6"></label>
+        <label id="confirmPasswordLabel" class="hidden">Confirm password<input id="confirmPassword" type="password" placeholder="Enter password again" autocomplete="new-password" minlength="6" disabled></label>
+        <button class="btn primary full" type="submit" id="loginBtn">Sign in</button>
+      </form>
+      <div class="auth-links"><button id="showSignup" class="text-btn" type="button">Create an owner account</button><button id="forgotPasswordBtn" class="text-btn" type="button">Forgot password?</button></div>
+      <p id="authMessage" class="form-message" aria-live="polite"></p>
+      <p class="tiny muted">Each business gets its own private account, inventory and company branding.</p>
+    </div>
+  </div>
+
+  <div id="app" class="app-shell hidden">
+    <aside class="sidebar" id="sidebar">
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button><a class="brand" href="#"><span class="brand-mark small logo-slot" id="sidebarBrandLogo">E<span>+</span></span><span id="sidebarCompanyName">ElectroStock<small>INVENTORY DESK</small></span></a>
+      <div class="side-label">WORKSPACE</div>
+      <button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button>
+      <button class="nav-item" data-view="products"><span>▤</span> Products <span class="nav-count" id="productNavCount">0</span></button>
+      <button class="nav-item" data-view="sales"><span>₦</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
+      <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button>
+      <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
+      <div class="sidebar-bottom">
+        <div class="owner-card"><div class="avatar" id="ownerAvatar">O</div><div><strong id="ownerDisplayName">Store owner</strong><small id="ownerEmail">Private workspace</small></div></div>
+        <button id="logoutBtn" class="nav-item logout"><span>↪</span> Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark small logo-slot" id="mobileBrandLogo">E<span>+</span></span><strong id="mobileCompanyName">ElectroStock</strong></div>
+        <div class="topbar-title"><p class="eyebrow">YOUR STORE AT A GLANCE</p><h2 id="pageTitle">Dashboard</h2></div>
+        <div class="top-actions"><div class="date-chip" id="todayLabel"></div><button class="icon-btn" id="refreshBtn" title="Refresh data">↻</button><button class="btn primary" id="addProductTop">＋ Add product</button></div>
+      </header>
+
+      <section id="dashboardView" class="view">
+        <div class="welcome-row"><div><h1>Good day 👋</h1><p class="muted">Here’s what’s happening with your inventory.</p></div><span class="live-pill"><i></i> Inventory overview</span></div>
+        <div class="stats-grid">
+          <article class="stat-card glass"><div class="stat-top"><span>Total products</span><span class="stat-icon violet">▤</span></div><h2 id="totalProducts">0</h2><p class="stat-foot">Unique product listings</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Units in stock</span><span class="stat-icon blue">▦</span></div><h2 id="totalUnits">0</h2><p class="stat-foot">Across all products</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Inventory value</span><span class="stat-icon green">₦</span></div><h2 id="inventoryValue">₦0</h2><p class="stat-foot">Based on purchase price</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Low stock</span><span class="stat-icon orange">!</span></div><h2 id="lowStockCount">0</h2><p class="stat-foot">At or below reorder level</p></article>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel glass"><div class="panel-heading"><div><h3>Stock alerts</h3><p class="muted">Products that need attention</p></div><button class="text-btn" data-go="products">View products →</button></div><div id="alertsList" class="alerts-list"></div></section>
+          <section class="panel glass"><div class="panel-heading"><div><h3>Inventory snapshot</h3><p class="muted">A quick view of your catalogue</p></div></div><div class="snapshot" id="snapshot"><div class="snapshot-ring"><span id="snapshotCount">0</span><small>products</small></div><div class="snapshot-legend"><p><i class="dot in-stock"></i> In stock <strong id="inStockCount">0</strong></p><p><i class="dot low-stock"></i> Low stock <strong id="snapshotLow">0</strong></p><p><i class="dot out-stock"></i> Out of stock <strong id="outStockCount">0</strong></p></div></div></section>
+        </div>
+        <section class="panel glass recent-panel"><div class="panel-heading"><div><h3>Recently added</h3><p class="muted">Your latest product listings</p></div><button class="text-btn" data-go="products">Open catalogue →</button></div><div id="recentProducts" class="table-wrap"></div></section>
+      </section>
+
+      <section id="productsView" class="view hidden">
+        <div class="section-intro"><div><h1>Product catalogue</h1><p class="muted">Manage your electronics, pricing and quantities.</p></div><button class="btn primary" id="addProductBtn">＋ Add product</button></div>
+        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search name, brand, model or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
+        <section class="panel glass"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>BUY PRICE</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th><th></th></tr></thead><tbody id="productsTable"></tbody></table><div id="emptyProducts" class="empty-state hidden"><div class="empty-icon">▤</div><h3>No products found</h3><p>Add your first product or adjust your search.</p><button class="btn primary" id="emptyAddBtn">＋ Add product</button></div></div></section>
+      </section>
+
+      <section id="salesView" class="view hidden">
+        <div class="section-intro"><div><h1>Sales management</h1><p class="muted">Track every sale, daily revenue, estimated gross profit and reprint receipts.</p></div><button class="btn primary" id="recordSaleBtn">＋ Record a sale</button></div>
+        <div class="stats-grid sales-stats">
+          <article class="stat-card glass"><div class="stat-top"><span>Sales today</span><span class="stat-icon violet">▤</span></div><h2 id="salesTodayCount">0</h2><p class="stat-foot">Completed transactions</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Revenue today</span><span class="stat-icon green">₦</span></div><h2 id="salesTodayRevenue">₦0</h2><p class="stat-foot">Sales value recorded today</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Gross profit today</span><span class="stat-icon orange">↗</span></div><h2 id="salesTodayProfit">₦0</h2><p class="stat-foot">Revenue less recorded product cost</p></article>
+        </div>
+        <section class="panel glass"><div class="panel-heading"><div><h3>Sales history</h3><p class="muted">Reprint receipts and review recorded sales.</p></div><input id="salesSearch" class="sales-search" type="search" placeholder="Search receipt, customer or product" aria-label="Search sales"></div>
+          <div class="table-wrap"><table><thead><tr><th>DATE</th><th>RECEIPT</th><th>PRODUCT</th><th>CUSTOMER</th><th>QTY</th><th>UNIT PRICE</th><th>TOTAL</th><th>GROSS PROFIT</th><th></th></tr></thead><tbody id="salesTable"></tbody></table><div id="emptySales" class="empty-state"><div class="empty-icon">₦</div><h3>No sales recorded yet</h3><p>Record a sale to see revenue and receipts here.</p><button class="btn primary" id="emptyRecordSaleBtn">＋ Record a sale</button></div></div>
+        </section>
+      </section>
+
+      <section id="stockView" class="view hidden">
+        <div class="section-intro"><div><h1>Stock movement</h1><p class="muted">Keep a record of stock added and quantity adjustments.</p></div></div>
+        <section class="panel glass stock-form-panel"><div class="panel-heading"><div><h3>Record stock movement</h3><p class="muted">Add purchased units or correct an inventory count.</p></div></div>
+          <form id="stockForm" class="form-grid">
+            <label class="span-2">Product<select id="stockProduct" required><option value="">Select a product</option></select></label>
+            <label>Movement type<select id="movementType"><option value="purchase">Stock purchase (+)</option><option value="adjustment">Quantity adjustment (+/-)</option><option value="sale">Sale / stock out (-)</option></select></label>
+            <label>Quantity<input id="movementQty" type="number" min="1" step="1" required placeholder="e.g. 5"></label>
+            <label class="span-2" id="customerFieldWrap">Customer name (for receipt)<input id="customerName" maxlength="100" placeholder="Walk-in customer"></label>
+            <label class="span-2">Note (optional)<input id="movementNote" maxlength="180" placeholder="Supplier, invoice number, reason..."></label>
+            <div class="span-2"><button class="btn primary" type="submit">Save stock movement</button><p id="stockMessage" class="form-message"></p></div>
+          </form>
+        </section>
+        <section class="panel glass"><div class="panel-heading"><div><h3>Movement history</h3><p class="muted">Recent stock changes on this device or account.</p></div></div><div class="table-wrap"><table><thead><tr><th>DATE</th><th>PRODUCT</th><th>TYPE</th><th>CHANGE</th><th>NOTE</th></tr></thead><tbody id="movementTable"></tbody></table><div id="emptyMovements" class="empty-state"><p>No stock movements recorded yet.</p></div></div></section>
+      </section>
+      <section id="settingsView" class="view hidden">
+        <div class="section-intro"><div><h1>Company settings</h1><p class="muted">Personalize ElectroStock for your business. Changes apply to your dashboard and receipts.</p></div></div>
+        <section class="panel glass settings-panel">
+          <div class="settings-preview"><div class="settings-logo-preview" id="settingsLogoPreview">E<span>+</span></div><div><h3 id="settingsPreviewName">ElectroStock</h3><p class="muted">Your business identity</p></div></div>
+          <section class="subscription-card" id="logoSubscriptionCard" aria-live="polite">
+            <div><p class="eyebrow">OPTIONAL BRANDING SUBSCRIPTION</p><h3>Use your own logo</h3><p class="muted">Replace the ElectroStock logo with your business logo across the app and printed receipts.</p><p class="subscription-price">₦1,500 <span>/ month</span></p><p class="tiny muted" id="logoSubscriptionStatus">Logo customization requires an active monthly subscription.</p></div>
+            <button class="btn primary" type="button" id="subscribeLogoBtn">Subscribe for ₦1,500/month</button>
+          </section>
+          <form id="settingsForm" class="form-grid">
+            <label class="span-2">Company / store name *<input id="settingCompanyName" maxlength="100" required placeholder="e.g. Ade Electronics"></label>
+            <label>Business phone<input id="settingPhone" maxlength="40" type="tel" placeholder="Phone number"></label>
+            <label>Business email<input id="settingEmail" maxlength="150" type="email" placeholder="business@example.com"></label>
+            <label class="span-2">Business address<input id="settingAddress" maxlength="220" placeholder="Street, city, country"></label>
+            <label>Currency<select id="settingCurrency"><option value="NGN">Nigerian Naira (₦)</option><option value="USD">US Dollar ($)</option><option value="GBP">British Pound (£)</option><option value="GHS">Ghanaian Cedi (GH₵)</option><option value="KES">Kenyan Shilling (KSh)</option><option value="ZAR">South African Rand (R)</option></select></label>
+            <label>Company logo <input id="settingLogoFile" type="file" accept="image/png,image/jpeg,image/webp" disabled><small class="muted" id="logoUploadHelp">Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.</small></label>
+            <label class="span-2">Receipt footer message<textarea id="settingReceiptFooter" rows="3" maxlength="240" placeholder="Thank you for your patronage!"></textarea></label>
+            <div class="span-2 settings-actions"><button class="btn primary" type="submit" id="saveSettingsBtn">Save company settings</button><p id="settingsMessage" class="form-message" aria-live="polite"></p></div>
+          </form>
+          <p class="tiny muted settings-note">Each signed-in account has its own settings. Keep your Supabase Row Level Security policies enabled to keep customer data separate.</p>
+        </section>
+      </section>
+      <footer><span id="footerCompanyName">ElectroStock</span> <span>•</span> Inventory management <span class="footer-right">Made for your store</span></footer>
+    </main>
+  </div>
+
+  <div id="onboardingModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <div class="modal glass onboarding-modal">
+      <div class="brand-mark">E<span>+</span></div>
+      <p class="eyebrow">FIRST-TIME SETUP</p><h2 id="onboardingTitle">Set up your business</h2>
+      <p class="muted onboarding-copy">Tell us about your store. You can change these details later in Company Settings.</p>
+      <form id="onboardingForm" class="form-grid">
+        <label class="span-2">Company / store name *<input id="onboardingCompany" required maxlength="100" placeholder="e.g. Ade Electronics"></label>
+        <label>Business phone<input id="onboardingPhone" type="tel" maxlength="40" placeholder="Phone number"></label>
+        <label>Business email<input id="onboardingEmail" type="email" maxlength="150" placeholder="business@example.com"></label>
+        <label class="span-2">Business address<input id="onboardingAddress" maxlength="220" placeholder="City, country"></label>
+        <label class="span-2">Currency<select id="onboardingCurrency"><option value="NGN">Nigerian Naira (₦)</option><option value="USD">US Dollar ($)</option><option value="GBP">British Pound (£)</option><option value="GHS">Ghanaian Cedi (GH₵)</option><option value="KES">Kenyan Shilling (KSh)</option><option value="ZAR">South African Rand (R)</option></select></label>
+        <p id="onboardingMessage" class="form-message span-2" aria-live="polite"></p>
+        <div class="span-2"><button class="btn primary full" type="submit" id="finishOnboardingBtn">Save business and continue</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="resetPasswordModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="resetPasswordTitle">
+    <div class="modal glass reset-modal"><p class="eyebrow">ACCOUNT SECURITY</p><h2 id="resetPasswordTitle">Choose a new password</h2>
+      <form id="resetPasswordForm" class="auth-reset-form">
+        <label>New password<input id="newPassword" type="password" minlength="6" required autocomplete="new-password" placeholder="At least 6 characters"></label>
+        <label>Confirm new password<input id="confirmNewPassword" type="password" minlength="6" required autocomplete="new-password" placeholder="Enter it again"></label>
+        <p id="resetPasswordMessage" class="form-message" aria-live="polite"></p>
+        <button class="btn primary full" type="submit" id="saveNewPasswordBtn">Update password</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="productModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal glass"><div class="modal-heading"><div><p class="eyebrow">PRODUCT DETAILS</p><h2 id="modalTitle">Add product</h2></div><button class="icon-btn" id="closeModal" aria-label="Close">×</button></div>
+      <form id="productForm" class="form-grid">
+        <input type="hidden" id="productId">
+        <label class="span-2">Product name *<input id="productName" required maxlength="100" placeholder="e.g. Samsung Galaxy A55"></label>
+        <label>Brand<input id="productBrand" maxlength="60" placeholder="e.g. Samsung"></label>
+        <label>Model<input id="productModel" maxlength="60" placeholder="e.g. SM-A556E"></label>
+        <label>Category *<select id="productCategory" required><option value="">Choose category</option><option>Phones</option><option>Laptops</option><option>Accessories</option><option>Audio</option><option>Gaming</option><option>Televisions</option><option>Networking</option><option>Storage</option><option>Power</option><option>Other</option></select></label>
+        <label>Quantity *<input id="productQty" type="number" min="0" step="1" required value="0"></label>
+        <label>Purchase price (₦) *<input id="productBuy" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Selling price (₦) *<input id="productSell" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Low-stock threshold<input id="productThreshold" type="number" min="0" step="1" value="3" required></label>
+        <label>Product image URL (optional)<input id="productImage" type="url" placeholder="https://..."></label>
+        <label class="span-2">Description (optional)<textarea id="productDescription" rows="2" maxlength="500" placeholder="Colour, storage, condition, warranty..."></textarea></label>
+        <p id="productMessage" class="form-message span-2"></p>
+        <div class="modal-actions span-2"><button type="button" class="btn secondary" id="cancelModal">Cancel</button><button type="submit" class="btn primary" id="saveProductBtn">Save product</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="receiptModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="receiptTitle">
+    <div class="receipt-card"><div class="receipt-top"><div class="receipt-logo" id="receiptLogo">E<span>+</span></div><p class="eyebrow">SALES RECEIPT</p><h2 id="receiptTitle">ElectroStock</h2><p id="receiptBusinessDetails" class="receipt-business-details"></p><p class="receipt-subtitle">Thank you for your purchase</p></div><div class="receipt-meta"><div><span>Receipt no.</span><strong id="receiptNumber">—</strong></div><div><span>Date</span><strong id="receiptDate">—</strong></div><div><span>Customer</span><strong id="receiptCustomer">Walk-in customer</strong></div></div><div class="receipt-line"><span>Item</span><strong id="receiptProduct">—</strong></div><div class="receipt-line"><span>Quantity</span><strong id="receiptQty">—</strong></div><div class="receipt-line"><span>Unit price</span><strong id="receiptUnitPrice">—</strong></div><div class="receipt-total"><span>TOTAL PAID</span><strong id="receiptTotal">—</strong></div><p class="receipt-thanks" id="receiptFooterMessage">Thank you for your patronage!</p><div class="receipt-actions"><button class="btn secondary" id="closeReceiptBtn" type="button">Close</button><button class="btn primary" id="printReceiptBtn" type="button">Print receipt</button></div></div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
