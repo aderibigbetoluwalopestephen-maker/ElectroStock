@@ -23,7 +23,7 @@ Without Supabase configured, use **Open demo workspace**. Demo data is stored on
 1. Create a project at https://supabase.com.
 2. In **SQL Editor**, run all of `supabase/schema.sql`.
 3. In **Project Settings → API**, copy the Project URL and the **anon/public** key.
-4. Put both values in `config.js`.
+4. Confirm the project URL and publishable/anon key in the root `config.js` match your Supabase project. The current repository has the project URL and publishable key filled in already.
 5. Run `supabase/sales_migration.sql`, then `supabase/company_settings_migration.sql`, then `supabase/multi_owner_security.sql`, then `supabase/logo_subscription_migration.sql` in SQL Editor, in that order.
 6. Reload the site. New customers choose **Create an owner account**, enter their full name, email and password, and verify their email if email confirmation is enabled. After their first sign-in, they complete the business setup screen.
 7. If you are selling access to many customers, keep public signups enabled in **Authentication → Settings**. If you want to sell paid access only, add a subscription/payment gate before giving customers access; registration alone should not be treated as proof of payment. Keep the anon key in the frontend; never expose the `service_role` key.
