@@ -23,7 +23,7 @@ Without Supabase configured, use **Open demo workspace**. Demo data is stored on
 1. Create a project at https://supabase.com.
 2. In **SQL Editor**, run all of `supabase/schema.sql`.
 3. In **Project Settings → API**, copy the Project URL and the **anon/public** key.
-4. Put both values in `js/config.js`.
+4. Put both values in `config.js`.
 5. Run `supabase/sales_migration.sql`, then `supabase/company_settings_migration.sql`, then `supabase/multi_owner_security.sql`, then `supabase/logo_subscription_migration.sql` in SQL Editor, in that order.
 6. Reload the site. New customers choose **Create an owner account**, enter their full name, email and password, and verify their email if email confirmation is enabled. After their first sign-in, they complete the business setup screen.
 7. If you are selling access to many customers, keep public signups enabled in **Authentication → Settings**. If you want to sell paid access only, add a subscription/payment gate before giving customers access; registration alone should not be treated as proof of payment. Keep the anon key in the frontend; never expose the `service_role` key.
@@ -94,13 +94,11 @@ Uploading a custom logo is locked unless that account has an active logo subscri
 To activate real payments:
 
 1. In Paystack, create a **recurring monthly plan priced at ₦1,500 NGN**. Copy its plan code.
-2. Set `paystackPublicKey` and `paystackPlanCode` in `js/config.js`. Only the Paystack public key belongs in frontend config; never place the Paystack secret key there.
+2. Set `paystackPublicKey` and `paystackPlanCode` in `config.js`. Only the Paystack public key belongs in frontend config; never place the Paystack secret key there.
 3. Run `supabase/logo_subscription_migration.sql` after the other migrations.
 4. Deploy the Supabase Edge Functions `verify-logo-subscription` and `paystack-logo-webhook` from `supabase/functions/`.
-5. Configure `PAYSTACK_SECRET_KEY` as an Edge Function secret. Do not expose it in `js/config.js` or commit it to Git.
+5. Configure `PAYSTACK_SECRET_KEY` as an Edge Function secret. Do not expose it in `config.js` or commit it to Git.
 6. In the Paystack dashboard, set the webhook URL to your deployed `paystack-logo-webhook` Edge Function URL.
 7. Test with Paystack test keys first. Confirm successful payment activates the logo upload for only that account, and that a second account remains locked until it pays.
 
 The checkout is deliberately fail-closed: if Supabase, the subscription migration, Paystack plan configuration, or payment verification is missing, it will not unlock logo uploads. The subscription verification currently sets a 30-day active period following verified payment; recurring renewals should be tested with Paystack's webhook before going live. Do not treat a browser success callback alone as proof of payment.
-#   E l e c t r o S t o c k  
- 
