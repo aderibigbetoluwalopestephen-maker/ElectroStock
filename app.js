@@ -306,14 +306,14 @@
   });
   $("scanPaySetupForm")?.addEventListener("submit",async e=>{
     e.preventDefault();
-    const button=$("scanPayConnectBtn"),message=$("scanPaySetupMessage");
-    message.textContent="";
-    if(localMode||!supabase||!session?.user){message.textContent="Sign in with a real Supabase account to connect a payout account. Demo mode cannot receive payments.";return;}
+    const button=$("scanPayConnectBtn"),messageEl=$("scanPaySetupMessage");
+    messageEl.textContent="";
+    if(localMode||!supabase||!session?.user){messageEl.textContent="Sign in with a real Supabase account to connect a payout account. Demo mode cannot receive payments.";return;}
     const accountNumber=$("scanPayAccountNumber").value.trim();
     const selectedBank=$("scanPayBankCode").value.trim();
     const bankCode=selectedBank==="other"?$("scanPayOtherBankCode").value.trim():selectedBank;
-    if(!bankCode){message("Choose a listed bank or enter the bank code provided by Paystack.");return;}
-    if(!/^\d{10}$/.test(accountNumber)){message.textContent="Enter a valid 10-digit Nigerian bank account number.";return;}
+    if(!bankCode){messageEl.textContent="Choose a listed bank or enter the bank code provided by Paystack.";return;}
+    if(!/^\d{10}$/.test(accountNumber)){messageEl.textContent="Enter a valid 10-digit Nigerian account number.";return;}
     button.disabled=true;button.textContent="Connecting to Paystack…";
     try{
       const {data,error}=await supabase.functions.invoke("setup-paystack-subaccount",{body:{
@@ -321,14 +321,14 @@
         bank_code:bankCode,
         account_number:accountNumber
       }});
-      if(error||!data?.success){message.textContent=data?.error||error?.message||"Could not connect the payout account. Check your Edge Function deployment.";return;}
+      if(error||!data?.success){messageEl.textContent=data?.error||error?.message||"Could not connect the payout account. Check your Edge Function deployment.";return;}
       companySettings={...companySettings,paystack_subaccount_code:"connected",payment_account_name:data.account_name||"",payment_account_last4:data.account_last4||accountNumber.slice(-4),scan_pay_enabled:true};
-      message.textContent="Payout account connected successfully.";
+      messageEl.textContent="Payout account connected successfully.";
       $("scanPayAccountNumber").value="";
       updateScanPaySetupUI();
       toast("Paystack payout account connected.");
       await loadCloud();
-    }catch(err){message.textContent=err?.message||"Could not connect the payout account.";}
+    }catch(err){messageEl.textContent=err?.message||"Could not connect the payout account.";}
     finally{button.disabled=false;button.textContent="Connect payout account";}
   });
   $("scanPayCopyLinkBtn")?.addEventListener("click",async()=>{
