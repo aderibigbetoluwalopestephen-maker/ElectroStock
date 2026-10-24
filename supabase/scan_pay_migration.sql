@@ -56,7 +56,7 @@ begin
     update public.products set quantity = quantity - v_qty, updated_at = now() where id = v_product.id and owner_id = v_payment.owner_id;
     v_receipt := v_payment.reference || '-' || v_line::text;
     insert into public.sales (owner_id,product_id,product_name,brand,model,quantity,unit_purchase_price,unit_selling_price,total_amount,gross_profit,customer_name,note,receipt_number)
-    values (v_payment.owner_id,v_product.id,v_product.name,v_product.brand,v_product.model,v_qty,v_product.purchase_price,v_product.selling_price,v_product.selling_price*v_qty,(v_product.selling_price-v_product.purchase_price)*v_qty,coalesce(nullif(trim(v_payment.customer_name),''),'Online customer'),'Scan & Pay reference: '||v_payment.reference,v_receipt);
+    values (v_payment.owner_id,v_product.id,v_product.name,v_product.brand,v_product.model,v_qty,v_product.purchase_price,v_product.selling_price,((v_item->>'unit_price_kobo')::numeric/100)*v_qty,(((v_item->>'unit_price_kobo')::numeric/100)-v_product.purchase_price)*v_qty,coalesce(nullif(trim(v_payment.customer_name),''),'Online customer'),'Scan & Pay reference: '||v_payment.reference,v_receipt);
     insert into public.stock_movements(owner_id,product_id,movement_type,quantity_change,note)
     values(v_payment.owner_id,v_product.id,'sale',-v_qty,'Scan & Pay payment '||v_payment.reference||' verified by Paystack');
   end loop;
