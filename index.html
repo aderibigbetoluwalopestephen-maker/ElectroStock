@@ -117,6 +117,23 @@
             <div class="span-2 settings-actions"><button class="btn primary" type="submit" id="saveSettingsBtn">Save company settings</button><p id="settingsMessage" class="form-message" aria-live="polite"></p></div>
           </form>
           <p class="tiny muted settings-note">Each signed-in account has its own settings. Keep your Supabase Row Level Security policies enabled to keep customer data separate.</p>
+          <section class="panel glass scan-pay-settings">
+            <div class="panel-heading"><div><p class="eyebrow">CUSTOMER CHECKOUT</p><h3>Scan &amp; Pay with Paystack</h3><p class="muted">Connect this shop's settlement account, then share a QR code so customers can browse products and pay online.</p></div></div>
+            <form id="scanPaySetupForm" class="form-grid">
+              <label class="span-2">Paystack business / store name<input id="scanPayBusinessName" maxlength="100" required placeholder="e.g. Ade Electronics"></label>
+              <label>Bank code<input id="scanPayBankCode" maxlength="20" required placeholder="Paystack bank code"></label>
+              <label>10-digit settlement account number<input id="scanPayAccountNumber" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required placeholder="0123456789"></label>
+              <div class="span-2"><button class="btn primary" type="submit" id="scanPayConnectBtn">Connect payout account</button><p id="scanPaySetupMessage" class="form-message" aria-live="polite"></p></div>
+            </form>
+            <div id="scanPayConnectedPanel" class="hidden">
+              <p id="scanPayConnectedStatus" class="muted"></p>
+              <label>Customer checkout link<input id="scanPayPublicLink" readonly></label>
+              <div class="settings-actions"><button class="btn secondary" type="button" id="scanPayCopyLinkBtn">Copy checkout link</button><button class="btn secondary" type="button" id="scanPayRefreshQrBtn">Show QR code</button></div>
+              <div id="scanPayQr" class="scan-pay-qr" aria-label="Scan to open the shop checkout"></div>
+              <p class="tiny muted">Only share this link after confirming your Paystack account is connected. Customers pay through Paystack checkout; settlement timing and fees depend on your Paystack account.</p>
+            </div>
+          </section>
+
         </section>
       </section>
       <footer><span id="footerCompanyName">ElectroStock</span> <span>•</span> Inventory management <span class="footer-right">Made for your store</span></footer>
@@ -174,6 +191,7 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
   <script src="config.js"></script>
