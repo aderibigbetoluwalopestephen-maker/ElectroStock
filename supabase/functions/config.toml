@@ -1,0 +1,13 @@
+# These endpoints are public because customers check out without ElectroStock accounts.
+# Each handler validates inputs and verifies payment server-side.
+[functions.setup-paystack-subaccount]
+verify_jwt = false
+
+[functions.scan-pay-shop]
+verify_jwt = false
+
+[functions.scan-pay-create]
+verify_jwt = false
+
+[functions.scan-pay-verify]
+verify_jwt = false
