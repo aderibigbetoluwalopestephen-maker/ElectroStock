@@ -29,7 +29,7 @@ create or replace function public.record_sale(
   p_note text default null
 ) returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
