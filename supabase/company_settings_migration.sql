@@ -11,6 +11,7 @@ create table if not exists public.company_settings (
   updated_at timestamptz not null default now()
 );
 alter table public.company_settings enable row level security;
+grant select, insert, update, delete on public.company_settings to authenticated;
 drop policy if exists "Owners manage their company settings" on public.company_settings;
 create policy "Owners manage their company settings" on public.company_settings for all to authenticated
 using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
