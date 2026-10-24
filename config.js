@@ -6,6 +6,6 @@ window.ELECTROSTOCK_CONFIG = {
   supabaseAnonKey: "sb_publishable_d07Nq8UWfVJivuhOxRQTgg_Y1l7bNTU",
   // Set these only after creating a ₦1,500/month recurring plan in Paystack.
   // The Paystack public key is safe for the browser; the secret key is not.
-  paystackPublicKey: "YOUR_PAYSTACK_PUBLIC_KEY",
-  paystackPlanCode: "YOUR_PAYSTACK_PLAN_CODE"
+  paystackPublicKey: "pk_live_2c0714f7f730d3cc467473e22b4fd97d545d2bdb",
+  paystackPlanCode: "PLN_cwk4lx7n32j31yh"
 };
