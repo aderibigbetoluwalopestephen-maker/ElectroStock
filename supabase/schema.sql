@@ -45,3 +45,6 @@ using (owner_id = (select auth.uid())) with check (
     )
   )
 );
+
+grant select, insert, update, delete on public.products to authenticated;
+grant select, insert, update, delete on public.stock_movements to authenticated;
