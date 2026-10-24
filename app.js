@@ -175,6 +175,8 @@
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
   $("searchInput").addEventListener("input",renderProducts);$("categoryFilter").addEventListener("change",renderProducts);$("stockFilter").addEventListener("change",renderProducts);
   $("exportBtn").addEventListener("click",exportInventory);
+  $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
+  $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.textContent="↑ Import Excel";e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
   function openSaleForm(){switchView("stock");$("movementType").value="sale";$("customerFieldWrap").classList.remove("hidden");$("stockProduct").focus();$("stockMessage").textContent="Choose a product and quantity, then save to record the sale.";}
   $("recordSaleBtn").addEventListener("click",openSaleForm);$("emptyRecordSaleBtn").addEventListener("click",openSaleForm);
@@ -223,17 +225,44 @@
     if(status)status.textContent=active?`Logo customization is active until ${new Date(logoSubscription.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})}.`:(localMode?"Connect Supabase and configure Paystack to activate secure paid logo customization.":"Logo customization requires an active ₦1,500/month subscription.");
     if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
-  $("subscribeLogoBtn").addEventListener("click",()=>{
-    if(hasActiveLogoSubscription()){toast("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
-    if(localMode || !session?.user){toast("Connect Supabase and sign in with a real account before subscribing.");return;}
-    if(!config.paystackPublicKey || config.paystackPublicKey.includes("YOUR_") || !config.paystackPlanCode || config.paystackPlanCode.includes("YOUR_")){toast("Add your Paystack public key and ₦1,500 monthly plan code in config.js first.");return;}
-    if(!window.PaystackPop){toast("Paystack checkout could not load. Check your internet connection.");return;}
-    const handler=window.PaystackPop.setup({key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),metadata:{owner_id:session.user.id,feature:"logo_customization"},callback:async(response)=>{
-      const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-      if(error || !data?.active){toast("Payment was received but verification did not complete. Contact support with reference: "+response.reference);return;}
-      logoSubscription={active:true,expires_at:data.expires_at};updateLogoSubscriptionUI();applyCompanyBranding();toast("Logo subscription activated. You can now upload your business logo.");
-    },onClose:()=>toast("Checkout closed. No changes were made.")});
-    handler.openIframe();
+  $("subscribeLogoBtn").addEventListener("click",async()=>{
+    const button=$("subscribeLogoBtn"),status=$("logoSubscriptionStatus");
+    const say=message=>{if(status)status.textContent=message;toast(message);};
+    try{
+      if(hasActiveLogoSubscription()){say("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
+      if(localMode||!session?.user){say("Payment is unavailable in demo mode. Sign in with your Supabase account to subscribe.");return;}
+      if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and monthly plan code in config.js.");return;}
+      if(!window.PaystackPop||typeof window.PaystackPop.setup!=="function"){say("Paystack checkout did not load. Check your connection, refresh the page, and try again.");return;}
+      if(!session.user.email){say("Your account has no email address. Add an email to your account before subscribing.");return;}
+      button.disabled=true;button.textContent="Opening secure checkout…";
+      status.textContent="Connecting to Paystack secure checkout…";
+      const handler=window.PaystackPop.setup({
+        key:config.paystackPublicKey,
+        email:session.user.email,
+        plan:config.paystackPlanCode,
+        ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
+        metadata:{owner_id:session.user.id,feature:"logo_customization"},
+        callback:async response=>{
+          status.textContent="Payment submitted. Verifying your subscription…";
+          try{
+            const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
+            if(error||!data?.active){say("Payment reference "+response.reference+" was returned, but subscription verification failed. Contact support with this reference.");return;}
+            logoSubscription={active:true,expires_at:data.expires_at};updateLogoSubscriptionUI();applyCompanyBranding();say("Subscription activated. You can now upload your business logo.");
+          }catch(error){console.error("Logo subscription verification failed:",error);say("Payment reference "+response.reference+" was returned, but verification could not finish. Save this reference and contact support.");}
+          finally{button.disabled=false;updateLogoSubscriptionUI();}
+        },
+        onClose:()=>{status.textContent="Checkout closed. No payment was confirmed.";button.disabled=false;updateLogoSubscriptionUI();}
+      });
+      if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack could not initialize the checkout window.");
+      handler.openIframe();
+    }catch(error){
+      console.error("Paystack checkout error:",error);
+      const message="Could not open payment checkout: "+(error?.message||"unknown error")+". Refresh the page and try again.";
+      if(status)status.textContent=message;
+      alert(message);
+    }finally{
+      if(button.textContent==="Opening secure checkout…"){button.disabled=false;button.textContent="Subscribe for ₦1,500/month";}
+    }
   });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
   $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
@@ -251,6 +280,44 @@
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
+  function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
+  async function importInventory(file){
+    if(!window.XLSX){throw new Error("Excel support could not load. Check your internet connection and refresh.");}
+    const buffer=await file.arrayBuffer();
+    const workbook=XLSX.read(buffer,{type:"array"});
+    const firstSheet=workbook.Sheets[workbook.SheetNames[0]];
+    if(!firstSheet)throw new Error("The workbook has no worksheet.");
+    const rows=XLSX.utils.sheet_to_json(firstSheet,{defval:"",raw:false});
+    if(!rows.length)throw new Error("The selected sheet is empty.");
+    const headerMap=new Map(Object.keys(rows[0]).map(k=>[normalizeImportHeader(k),k]));
+    const pick=(row,...names)=>{for(const name of names){const key=headerMap.get(normalizeImportHeader(name));if(key!==undefined&&row[key]!==""&&row[key]!==null)return row[key];}return "";};
+    const parsed=rows.map((row,index)=>{
+      const name=String(pick(row,"Product name","Product","Name","Item name","Item")).trim();
+      if(!name)return null;
+      const category=String(pick(row,"Category","Product category")||"Other").trim();
+      const number=(v,fallback=0)=>{const n=Number(String(v??"").replace(/[₦,$£€\s,]/g,""));return Number.isFinite(n)&&String(v).trim()!==""?n:fallback;};
+      const quantity=number(pick(row,"Quantity","Qty","Stock","Units"),0);
+      const purchase_price=number(pick(row,"Purchase price NGN","Purchase price","Cost price","Buy price","Buying price"),0);
+      const selling_price=number(pick(row,"Selling price NGN","Selling price","Sell price","Retail price","Price"),0);
+      const threshold=number(pick(row,"Low-stock threshold","Low stock threshold","Reorder level"),3);
+      if(quantity<0||purchase_price<0||selling_price<0||threshold<0)throw new Error("Row "+(index+2)+" has a negative quantity or price.");
+      return {name,brand:String(pick(row,"Brand")||"").trim()||null,model:String(pick(row,"Model")||"").trim()||null,category,purchase_price,selling_price,quantity,low_stock_threshold:threshold,image_url:String(pick(row,"Image URL","Image","Image link")||"").trim()||null,description:String(pick(row,"Description","Notes")||"").trim()||null};
+    }).filter(Boolean);
+    if(!parsed.length)throw new Error('No product rows found. Include a "Product name" column and at least one product row.');
+    if(localMode){
+      const now=new Date().toISOString();
+      products=[...parsed.map(p=>({...p,id:crypto.randomUUID(),created_at:now})),...products];
+      saveLocal();renderAll();
+    }else{
+      if(!session?.user?.id)throw new Error("Please sign in again before importing products.");
+      const batch=parsed.map(p=>({...p,owner_id:session.user.id}));
+      const {error}=await supabase.from("products").insert(batch);
+      if(error)throw new Error(error.message);
+      await loadCloud();
+    }
+    switchView("products");
+    toast("Imported "+parsed.length+" product"+(parsed.length===1?"":"s")+" successfully.");
+  }
   function exportInventory(){
     const rows=products.map(p=>({"Product name":p.name,"Brand":p.brand||"","Model":p.model||"","Category":p.category||"Other","Purchase price (NGN)":Number(p.purchase_price||0),"Selling price (NGN)":Number(p.selling_price||0),"Quantity":Number(p.quantity||0),"Low-stock threshold":Number(p.low_stock_threshold??3),"Stock status":statusText(statusOf(p)),"Inventory cost value (NGN)":Number(p.purchase_price||0)*Number(p.quantity||0),"Image URL":p.image_url||"","Description":p.description||"","Created at":p.created_at||""}));
     const fileDate=new Date().toISOString().slice(0,10);
