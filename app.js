@@ -202,7 +202,7 @@
   function populateSettingsForm(){
     if(!$('settingCompanyName'))return;
     $("settingCompanyName").value=companySettings.company_name||"ElectroStock";$("settingPhone").value=companySettings.phone||"";$("settingEmail").value=companySettings.email||"";$("settingAddress").value=companySettings.address||"";$("settingCurrency").value=companySettings.currency||"NGN";$("settingReceiptFooter").value=companySettings.receipt_footer||"Thank you for your patronage!";
-    $("settingsMessage").textContent="";applyCompanyBranding();
+    $("settingsMessage").textContent="";applyCompanyBranding();updateScanPaySetupUI();
   }
   async function uploadCompanyLogo(file){
     if(!file)return {url:companySettings.logo_url,error:null};
@@ -281,6 +281,55 @@
     else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
+  function scanPayCheckoutUrl(){
+    if(!session?.user?.id)return "";
+    const base=window.location.href.split("?")[0].replace(/index\.html$/i,"");
+    return base.replace(/\/$/,"")+"/pay.html?shop="+encodeURIComponent(session.user.id);
+  }
+  function updateScanPaySetupUI(){
+    const panel=$("scanPayConnectedPanel");
+    if(!panel)return;
+    const ready=!!(companySettings.paystack_subaccount_code && companySettings.scan_pay_enabled);
+    panel.classList.toggle("hidden",!ready);
+    if(ready){
+      $("scanPayConnectedStatus").textContent="Connected to Paystack settlement account "+(companySettings.payment_account_name||"")+" •••• "+(companySettings.payment_account_last4||"");
+      $("scanPayPublicLink").value=scanPayCheckoutUrl();
+      if(window.QRCode){
+        $("scanPayQr").innerHTML="";
+        new QRCode($("scanPayQr"),{text:scanPayCheckoutUrl(),width:190,height:190,colorDark:"#101827",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+      }
+    }
+  }
+  $("scanPaySetupForm")?.addEventListener("submit",async e=>{
+    e.preventDefault();
+    const button=$("scanPayConnectBtn"),message=$("scanPaySetupMessage");
+    message.textContent="";
+    if(localMode||!supabase||!session?.user){message.textContent="Sign in with a real Supabase account to connect a payout account. Demo mode cannot receive payments.";return;}
+    const accountNumber=$("scanPayAccountNumber").value.trim();
+    if(!/^\d{10}$/.test(accountNumber)){message.textContent="Enter a valid 10-digit Nigerian bank account number.";return;}
+    button.disabled=true;button.textContent="Connecting to Paystack…";
+    try{
+      const {data,error}=await supabase.functions.invoke("setup-paystack-subaccount",{body:{
+        business_name:$("scanPayBusinessName").value.trim()||companySettings.company_name,
+        bank_code:$("scanPayBankCode").value.trim(),
+        account_number:accountNumber
+      }});
+      if(error||!data?.success){message.textContent=data?.error||error?.message||"Could not connect the payout account. Check your Edge Function deployment.";return;}
+      companySettings={...companySettings,paystack_subaccount_code:"connected",payment_account_name:data.account_name||"",payment_account_last4:data.account_last4||accountNumber.slice(-4),scan_pay_enabled:true};
+      message.textContent="Payout account connected successfully.";
+      $("scanPayAccountNumber").value="";
+      updateScanPaySetupUI();
+      toast("Paystack payout account connected.");
+      await loadCloud();
+    }catch(err){message.textContent=err?.message||"Could not connect the payout account.";}
+    finally{button.disabled=false;button.textContent="Connect payout account";}
+  });
+  $("scanPayCopyLinkBtn")?.addEventListener("click",async()=>{
+    const value=$("scanPayPublicLink").value;
+    try{await navigator.clipboard.writeText(value);toast("Checkout link copied.");}
+    catch{ $("scanPayPublicLink").focus();$("scanPayPublicLink").select();toast("Select and copy the checkout link.");}
+  });
+  $("scanPayRefreshQrBtn")?.addEventListener("click",updateScanPaySetupUI);
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
   async function importInventory(file){
