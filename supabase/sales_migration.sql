@@ -18,6 +18,7 @@ create table if not exists public.sales (
 );
 create index if not exists sales_owner_created_idx on public.sales(owner_id, created_at desc);
 alter table public.sales enable row level security;
+grant select on public.sales to authenticated;
 drop policy if exists "Owners read their sales" on public.sales;
 create policy "Owners read their sales" on public.sales for select to authenticated using (owner_id = (select auth.uid()));
 -- Direct inserts/updates/deletes are intentionally not granted; record_sale is the controlled write path.
