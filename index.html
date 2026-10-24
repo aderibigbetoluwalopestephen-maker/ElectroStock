@@ -89,7 +89,7 @@
         <section class="panel glass stock-form-panel"><div class="panel-heading"><div><h3>Record stock movement</h3><p class="muted">Add purchased units or correct an inventory count.</p></div></div>
           <form id="stockForm" class="form-grid">
             <label class="span-2">Product<select id="stockProduct" required><option value="">Select a product</option></select></label>
-            <label>Movement type<select id="movementType"><option value="purchase">Stock purchase (+)</option><option value="adjustment">Quantity adjustment (+/-)</option><option value="sale">Sale / stock out (-)</option></select></label>
+            <label>Movement type<select id="movementType"><option value="purchase">Stock purchase (+)</option><option value="adjustment">Quantity adjustment (+)</option><option value="sale">Sale / stock out (-)</option></select></label>
             <label>Quantity<input id="movementQty" type="number" min="1" step="1" required placeholder="e.g. 5"></label>
             <label class="span-2" id="customerFieldWrap">Customer name (for receipt)<input id="customerName" maxlength="100" placeholder="Walk-in customer"></label>
             <label class="span-2">Note (optional)<input id="movementNote" maxlength="180" placeholder="Supplier, invoice number, reason..."></label>
