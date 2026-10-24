@@ -226,7 +226,7 @@
   $("subscribeLogoBtn").addEventListener("click",()=>{
     if(hasActiveLogoSubscription()){toast("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
     if(localMode || !session?.user){toast("Connect Supabase and sign in with a real account before subscribing.");return;}
-    if(!config.paystackPublicKey || config.paystackPublicKey.includes("YOUR_") || !config.paystackPlanCode || config.paystackPlanCode.includes("YOUR_")){toast("Add your Paystack public key and ₦1,500 monthly plan code in js/config.js first.");return;}
+    if(!config.paystackPublicKey || config.paystackPublicKey.includes("YOUR_") || !config.paystackPlanCode || config.paystackPlanCode.includes("YOUR_")){toast("Add your Paystack public key and ₦1,500 monthly plan code in config.js first.");return;}
     if(!window.PaystackPop){toast("Paystack checkout could not load. Check your internet connection.");return;}
     const handler=window.PaystackPop.setup({key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),metadata:{owner_id:session.user.id,feature:"logo_customization"},callback:async(response)=>{
       const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
