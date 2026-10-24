@@ -5,7 +5,7 @@ A responsive personal electronics inventory dashboard built with HTML, CSS, vani
 ## Included
 - Dashboard: product count, units, stock value at purchase cost, low/out-of-stock alerts.
 - Product catalogue: add, edit, delete, search by name/brand/model/category, category and stock filters.
-- Stock movement: purchases, sales/stock out, quantity adjustments, and movement history.
+- Stock movement: purchases, sales/stock out, positive quantity adjustments, and movement history. Use Sale / stock out to reduce stock.
 - Configurable currency and company branding (name, phone, email, address, logo and receipt footer).
 - Separate Supabase login per customer, with owner-scoped inventory and settings.
 - Paid logo customization gate: ₦1,500/month, with Paystack checkout and server-side payment verification when configured.
