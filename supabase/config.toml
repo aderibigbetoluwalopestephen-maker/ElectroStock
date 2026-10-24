@@ -1,0 +1,7 @@
+project_id = "gldzrhocqlefedoykfdr"
+
+[functions.paystack-logo-webhook]
+verify_jwt = false
+
+[functions.verify-logo-subscription]
+verify_jwt = true
