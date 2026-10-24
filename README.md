@@ -102,3 +102,21 @@ To activate real payments:
 7. Test with Paystack test keys first. Confirm successful payment activates the logo upload for only that account, and that a second account remains locked until it pays.
 
 The checkout is deliberately fail-closed: if Supabase, the subscription migration, Paystack plan configuration, or payment verification is missing, it will not unlock logo uploads. The subscription verification currently sets a 30-day active period following verified payment; recurring renewals should be tested with Paystack's webhook before going live. Do not treat a browser success callback alone as proof of payment.
+
+
+## Scan & Pay (Paystack QR checkout)
+
+The Scan & Pay UI and customer page are in `index.html` and `pay.html`. Before enabling it for real customers, complete the server/database setup below. The browser must never contain a Paystack secret key or Supabase service-role key.
+
+1. In Supabase SQL Editor, run `supabase/scan_pay_migration.sql` after the existing schema, sales and company-settings migrations.
+2. Then run `supabase/scan_pay_public_rpc.sql`. This exposes only explicitly enabled shop catalogues and calculates order totals from database prices.
+3. In Supabase Edge Function secrets, set `PAYSTACK_SECRET_KEY` to your Paystack secret key and `SCAN_PAY_DB_KEY` to your Supabase service-role key. These are server-side secrets only; never put them in `config.js`, HTML, JavaScript, or GitHub source.
+4. Deploy the functions from the repository using the Supabase CLI. These endpoints must be deployed with JWT verification disabled because customers check out without ElectroStock accounts; the payout setup handler validates the signed-in owner's access token itself:
+   - `supabase functions deploy setup-paystack-subaccount --no-verify-jwt`
+   - `supabase functions deploy scan-pay-shop --no-verify-jwt`
+   - `supabase functions deploy scan-pay-create --no-verify-jwt`
+   - `supabase functions deploy scan-pay-verify --no-verify-jwt`
+5. In ElectroStock, sign in with a real owner account, open **Company settings**, enter your Paystack business name, Nigerian bank code and 10-digit settlement account number, and connect the payout account. Paystack must accept the subaccount before Scan & Pay is enabled.
+6. Share the QR code or checkout link. Customers choose in-stock products, enter an email, and are redirected to Paystack. The return page asks the server to verify the reference before recording the sale.
+
+**Important:** The feature needs a live Supabase deployment and Paystack account configured for subaccount/split settlement. Test with Paystack test credentials and a separate test project before accepting real payments. A successful Paystack charge with insufficient stock at finalization requires owner attention and may require a refund; this starter does not automatically refund. Confirm settlement, fees and account onboarding requirements with Paystack before launch.
