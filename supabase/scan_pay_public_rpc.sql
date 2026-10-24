@@ -48,7 +48,7 @@ begin
   ref := 'ESQR-' || replace(gen_random_uuid()::text,'-','');
   insert into public.scan_payments(reference,owner_id,customer_name,customer_email,currency,amount_kobo,items)
     values(ref,p_owner_id,left(trim(coalesce(p_customer_name,'')),120),lower(trim(p_customer_email)),'NGN',total_kobo,saved_items);
-  return jsonb_build_object('reference',ref,'amount_kobo',total_kobo,'currency','NGN','shop_name',s.company_name);
+  return jsonb_build_object('reference',ref,'amount_kobo',total_kobo,'currency','NGN','shop_name',s.company_name,'subaccount_code',s.paystack_subaccount_code);
 end;
 $$;
 revoke all on function public.create_scan_pay_order(uuid,text,text,jsonb) from public;
