@@ -242,16 +242,18 @@
         plan:config.paystackPlanCode,
         ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
         metadata:{owner_id:session.user.id,feature:"logo_customization"},
-        callback:async response=>{
+        callback:function(response){
           status.textContent="Payment submitted. Verifying your subscription…";
-          try{
-            const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-            if(error||!data?.active){say("Payment reference "+response.reference+" was returned, but subscription verification failed. Contact support with this reference.");return;}
-            logoSubscription={active:true,expires_at:data.expires_at};updateLogoSubscriptionUI();applyCompanyBranding();say("Subscription activated. You can now upload your business logo.");
-          }catch(error){console.error("Logo subscription verification failed:",error);say("Payment reference "+response.reference+" was returned, but verification could not finish. Save this reference and contact support.");}
-          finally{button.disabled=false;updateLogoSubscriptionUI();}
+          (async function(){
+            try{
+              const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
+              if(error||!data?.active){say("Payment reference "+response.reference+" was returned, but subscription verification failed. Contact support with this reference.");return;}
+              logoSubscription={active:true,expires_at:data.expires_at};updateLogoSubscriptionUI();applyCompanyBranding();say("Subscription activated. You can now upload your business logo.");
+            }catch(error){console.error("Logo subscription verification failed:",error);say("Payment reference "+response.reference+" was returned, but verification could not finish. Save this reference and contact support.");}
+            finally{button.disabled=false;updateLogoSubscriptionUI();}
+          })();
         },
-        onClose:()=>{status.textContent="Checkout closed. No payment was confirmed.";button.disabled=false;updateLogoSubscriptionUI();}
+        onClose:function(){status.textContent="Checkout closed. No payment was confirmed.";button.disabled=false;updateLogoSubscriptionUI();}
       });
       if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack could not initialize the checkout window.");
       handler.openIframe();
