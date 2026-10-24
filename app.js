@@ -300,18 +300,25 @@
       }
     }
   }
+  $("scanPayBankCode")?.addEventListener("change",()=>{
+    const wrap=$("scanPayOtherBankWrap");
+    if(wrap)wrap.classList.toggle("hidden",$("scanPayBankCode").value!=="other");
+  });
   $("scanPaySetupForm")?.addEventListener("submit",async e=>{
     e.preventDefault();
     const button=$("scanPayConnectBtn"),message=$("scanPaySetupMessage");
     message.textContent="";
     if(localMode||!supabase||!session?.user){message.textContent="Sign in with a real Supabase account to connect a payout account. Demo mode cannot receive payments.";return;}
     const accountNumber=$("scanPayAccountNumber").value.trim();
+    const selectedBank=$("scanPayBankCode").value.trim();
+    const bankCode=selectedBank==="other"?$("scanPayOtherBankCode").value.trim():selectedBank;
+    if(!bankCode){message("Choose a listed bank or enter the bank code provided by Paystack.");return;}
     if(!/^\d{10}$/.test(accountNumber)){message.textContent="Enter a valid 10-digit Nigerian bank account number.";return;}
     button.disabled=true;button.textContent="Connecting to Paystack…";
     try{
       const {data,error}=await supabase.functions.invoke("setup-paystack-subaccount",{body:{
         business_name:$("scanPayBusinessName").value.trim()||companySettings.company_name,
-        bank_code:$("scanPayBankCode").value.trim(),
+        bank_code:bankCode,
         account_number:accountNumber
       }});
       if(error||!data?.success){message.textContent=data?.error||error?.message||"Could not connect the payout account. Check your Edge Function deployment.";return;}
