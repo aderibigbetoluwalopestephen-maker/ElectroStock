@@ -31,6 +31,7 @@ declare
 begin
   if lower(trim(p_customer_email)) !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' then raise exception 'Enter a valid customer email.'; end if;
   if jsonb_typeof(p_requested_items) <> 'array' or jsonb_array_length(p_requested_items) < 1 or jsonb_array_length(p_requested_items) > 30 then raise exception 'Choose between 1 and 30 products.'; end if;
+  if jsonb_array_length(p_requested_items) <> (select count(distinct value->>'product_id') from jsonb_array_elements(p_requested_items)) then raise exception 'Choose each product only once and adjust its quantity.'; end if;
   select * into s from public.company_settings where owner_id=p_owner_id and scan_pay_enabled=true and paystack_subaccount_code is not null;
   if not found then raise exception 'This shop has not connected Paystack.'; end if;
   if s.currency <> 'NGN' then raise exception 'Scan & Pay currently supports NGN shops only.'; end if;
