@@ -3,7 +3,6 @@ alter table public.products enable row level security;
 alter table public.stock_movements enable row level security;
 alter table public.sales enable row level security;
 alter table public.company_settings enable row level security;
-alter table public.logo_subscriptions enable row level security;
 
 drop policy if exists "Owners manage their products" on public.products;
 create policy "Owners manage their products" on public.products for all to authenticated
@@ -18,6 +17,3 @@ create policy "Owners read their sales" on public.sales for select to authentica
 drop policy if exists "Owners manage their company settings" on public.company_settings;
 create policy "Owners manage their company settings" on public.company_settings for all to authenticated
 using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-drop policy if exists "Owners read their logo subscription" on public.logo_subscriptions;
-create policy "Owners read their logo subscription" on public.logo_subscriptions for select to authenticated
-using (owner_id = (select auth.uid()));
