@@ -16,11 +16,7 @@ Deno.serve(async (req) => {
   const rawBody = await req.text();
   const supplied = req.headers.get("x-paystack-signature") || "";
   const expected = await hmacSha512(secret, rawBody);
-  if (!supplied || supplied.length !== expected.length ||
-      !crypto.subtle.timingSafeEqual) {
-    // Deno Web Crypto does not expose timingSafeEqual; use constant-time comparison below.
-    if (!supplied || supplied.length !== expected.length) return new Response("Invalid signature", { status: 401 });
-  }
+  if (!supplied || supplied.length !== expected.length) return new Response("Invalid signature", { status: 401 });
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
   if (diff !== 0) return new Response("Invalid signature", { status: 401 });
