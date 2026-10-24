@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.verify-logo-subscription]
 verify_jwt = true
+
+[functions.setup-paystack-subaccount]
+verify_jwt = false
+
+[functions.scan-pay-shop]
+verify_jwt = false
+
+[functions.scan-pay-create]
+verify_jwt = false
+
+[functions.scan-pay-verify]
+verify_jwt = false
