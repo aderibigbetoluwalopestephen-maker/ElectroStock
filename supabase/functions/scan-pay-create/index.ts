@@ -19,13 +19,6 @@ Deno.serve(async (req) => {
       p_requested_items: Array.isArray(body.items) ? body.items : [],
     });
     if (error) return reply({ error: error.message }, 400);
-    const { data: shopData, error: shopError } = await db.rpc("get_scan_pay_shop", { p_owner_id: ownerId });
-    if (shopError || !shopData?.shop) return reply({ error: "This shop is not available for checkout." }, 404);
-    const { data: settings, error: settingsError } = await db.from("company_settings")
-      .select("paystack_subaccount_code")
-      .eq("owner_id", ownerId).maybeSingle();
-    // The private settings table is not publicly readable, so the subaccount is returned by a dedicated RPC.
-    if (settingsError || !settings?.paystack_subaccount_code) return reply({ error: "Shop payout setup needs to be completed. Run the Scan & Pay SQL setup." }, 503);
     const origin = req.headers.get("origin") || "https://example.com";
     const callback = new URL("/pay.html", origin);
     callback.searchParams.set("shop", ownerId);
@@ -35,9 +28,9 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         email, amount: order.amount_kobo, currency: "NGN", reference: order.reference,
-        subaccount: settings.paystack_subaccount_code, transaction_charge: 0, bearer: "subaccount",
+        subaccount: order.subaccount_code, transaction_charge: 0, bearer: "subaccount",
         callback_url: callback.toString(),
-        metadata: { custom_fields: [{ display_name: "Shop", variable_name: "shop", value: String(shopData.shop.company_name || "ElectroStock") }] },
+        metadata: { custom_fields: [{ display_name: "Shop", variable_name: "shop", value: String(order.shop_name || "ElectroStock") }] },
       }),
     });
     const paystack = await response.json();
