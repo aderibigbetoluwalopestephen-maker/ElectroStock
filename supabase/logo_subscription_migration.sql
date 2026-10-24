@@ -7,6 +7,7 @@ create table if not exists public.logo_subscriptions (
   updated_at timestamptz not null default now()
 );
 alter table public.logo_subscriptions enable row level security;
+grant select on public.logo_subscriptions to authenticated;
 drop policy if exists "Owners read their logo subscription" on public.logo_subscriptions;
 create policy "Owners read their logo subscription" on public.logo_subscriptions for select to authenticated
 using (owner_id = (select auth.uid()));
