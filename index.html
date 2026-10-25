@@ -35,6 +35,7 @@
       <div class="side-label">WORKSPACE</div>
       <button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button>
       <button class="nav-item" data-view="products"><span>▤</span> Products <span class="nav-count" id="productNavCount">0</span></button>
+      <button class="nav-item" data-view="pos"><span>▣</span> Point of Sale</button>
       <button class="nav-item" data-view="sales"><span>↗</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
       <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button>
       <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
@@ -64,6 +65,32 @@
           <section class="panel glass"><div class="panel-heading"><div><h3>Inventory snapshot</h3><p class="muted">A quick view of your catalogue</p></div></div><div class="snapshot" id="snapshot"><div class="snapshot-ring"><span id="snapshotCount">0</span><small>products</small></div><div class="snapshot-legend"><p><i class="dot in-stock"></i> In stock <strong id="inStockCount">0</strong></p><p><i class="dot low-stock"></i> Low stock <strong id="snapshotLow">0</strong></p><p><i class="dot out-stock"></i> Out of stock <strong id="outStockCount">0</strong></p></div></div></section>
         </div>
         <section class="panel glass recent-panel"><div class="panel-heading"><div><h3>Recently added</h3><p class="muted">Your latest product listings</p></div><button class="text-btn" data-go="products">Open catalogue →</button></div><div id="recentProducts" class="table-wrap"></div></section>
+      </section>
+
+      <section id="posView" class="view hidden">
+        <div class="section-intro"><div><h1>Point of Sale</h1><p class="muted">Build a multi-item cart, record how the customer paid, and issue one receipt.</p></div><span class="live-pill"><i></i> Manual checkout</span></div>
+        <div class="pos-layout">
+          <section class="panel glass pos-products-panel">
+            <div class="panel-heading"><div><h3>Choose products</h3><p class="muted">Search the catalogue and add items to the cart.</p></div></div>
+            <div class="search-box pos-search"><span>⌕</span><input id="posSearch" type="search" placeholder="Search product name, category or brand..." aria-label="Search products for checkout"></div>
+            <div id="posProductResults" class="pos-product-results"></div>
+          </section>
+          <section class="panel glass pos-cart-panel">
+            <div class="panel-heading"><div><h3>Current sale</h3><p class="muted"><span id="posCartCount">0</span> item types in cart</p></div><button id="clearPosCartBtn" class="btn secondary" type="button">Clear cart</button></div>
+            <div id="posCartItems" class="pos-cart-items"><div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div></div>
+            <div class="pos-checkout">
+              <div class="pos-total-row"><span>Subtotal</span><strong id="posSubtotal">₦0</strong></div>
+              <div class="pos-total-row grand"><span>Total due</span><strong id="posTotal">₦0</strong></div>
+              <form id="posCheckoutForm" class="form-grid">
+                <label class="span-2">Customer name (optional)<input id="posCustomer" maxlength="100" placeholder="Walk-in customer"></label>
+                <label class="span-2">Payment method<select id="posPaymentMethod"><option value="cash">Cash</option><option value="bank transfer">Bank transfer</option><option value="card / pos terminal">Card / POS terminal</option><option value="other">Other (recorded manually)</option></select></label>
+                <label class="span-2">Sale note (optional)<input id="posNote" maxlength="180" placeholder="Order reference or short note"></label>
+                <button id="posCompleteBtn" class="btn primary full span-2" type="submit" disabled>Complete sale</button>
+                <p id="posMessage" class="form-message span-2" aria-live="polite"></p>
+              </form>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section id="productsView" class="view hidden">
@@ -167,7 +194,7 @@
     </div>
   </div>
   <div id="receiptModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="receiptTitle">
-    <div class="receipt-card"><div class="receipt-top"><div class="receipt-logo" id="receiptLogo">E<span>+</span></div><p class="eyebrow">SALES RECEIPT</p><h2 id="receiptTitle">ElectroStock</h2><p id="receiptBusinessDetails" class="receipt-business-details"></p><p class="receipt-subtitle">Thank you for your purchase</p></div><div class="receipt-meta"><div><span>Receipt no.</span><strong id="receiptNumber">—</strong></div><div><span>Date</span><strong id="receiptDate">—</strong></div><div><span>Customer</span><strong id="receiptCustomer">Walk-in customer</strong></div></div><div class="receipt-line"><span>Item</span><strong id="receiptProduct">—</strong></div><div class="receipt-line"><span>Quantity</span><strong id="receiptQty">—</strong></div><div class="receipt-line"><span>Unit price</span><strong id="receiptUnitPrice">—</strong></div><div class="receipt-total"><span>TOTAL PAID</span><strong id="receiptTotal">—</strong></div><p class="receipt-thanks" id="receiptFooterMessage">Thank you for your patronage!</p><div class="receipt-actions"><button class="btn secondary" id="closeReceiptBtn" type="button">Close</button><button class="btn primary" id="printReceiptBtn" type="button">Print receipt</button></div></div>
+    <div class="receipt-card"><div class="receipt-top"><div class="receipt-logo" id="receiptLogo">E<span>+</span></div><p class="eyebrow">SALES RECEIPT</p><h2 id="receiptTitle">ElectroStock</h2><p id="receiptBusinessDetails" class="receipt-business-details"></p><p class="receipt-subtitle">Thank you for your purchase</p></div><div class="receipt-meta"><div><span>Receipt no.</span><strong id="receiptNumber">—</strong></div><div><span>Date</span><strong id="receiptDate">—</strong></div><div><span>Customer</span><strong id="receiptCustomer">Walk-in customer</strong></div></div><div class="receipt-line"><span>Payment method</span><strong id="receiptPaymentMethod">Cash</strong></div><div id="receiptItems" class="receipt-items"></div><div class="receipt-total"><span>TOTAL PAID</span><strong id="receiptTotal">—</strong></div><p class="receipt-thanks" id="receiptFooterMessage">Thank you for your patronage!</p><div class="receipt-actions"><button class="btn secondary" id="closeReceiptBtn" type="button">Close</button><button class="btn primary" id="printReceiptBtn" type="button">Print receipt</button></div></div>
   </div>
   <div id="toast" class="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
