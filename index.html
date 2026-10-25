@@ -35,7 +35,7 @@
       <div class="side-label">WORKSPACE</div>
       <button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button>
       <button class="nav-item" data-view="products"><span>▤</span> Products <span class="nav-count" id="productNavCount">0</span></button>
-      <button class="nav-item" data-view="sales"><span>₦</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
+      <button class="nav-item" data-view="sales"><span>↗</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
       <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button>
       <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
       <div class="sidebar-bottom">
@@ -56,7 +56,7 @@
         <div class="stats-grid">
           <article class="stat-card glass"><div class="stat-top"><span>Total products</span><span class="stat-icon violet">▤</span></div><h2 id="totalProducts">0</h2><p class="stat-foot">Unique product listings</p></article>
           <article class="stat-card glass"><div class="stat-top"><span>Units in stock</span><span class="stat-icon blue">▦</span></div><h2 id="totalUnits">0</h2><p class="stat-foot">Across all products</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Inventory value</span><span class="stat-icon green">₦</span></div><h2 id="inventoryValue">₦0</h2><p class="stat-foot">Based on purchase price</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Inventory value</span><span class="stat-icon green">¤</span></div><h2 id="inventoryValue">₦0</h2><p class="stat-foot">Based on purchase price</p></article>
           <article class="stat-card glass"><div class="stat-top"><span>Low stock</span><span class="stat-icon orange">!</span></div><h2 id="lowStockCount">0</h2><p class="stat-foot">At or below reorder level</p></article>
         </div>
         <div class="dashboard-grid">
@@ -68,7 +68,7 @@
 
       <section id="productsView" class="view hidden">
         <div class="section-intro"><div><h1>Product catalogue</h1><p class="muted">Manage products, pricing and stock for your business.</p></div><button class="btn primary" id="addProductBtn">＋ Add product</button></div>
-        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search product name, brand, model or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
+        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search product name, brand, size or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
         <section class="panel glass"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>BUY PRICE</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th><th></th></tr></thead><tbody id="productsTable"></tbody></table><div id="emptyProducts" class="empty-state hidden"><div class="empty-icon">▤</div><h3>No products found</h3><p>Add your first product or adjust your search.</p><button class="btn primary" id="emptyAddBtn">＋ Add product</button></div></div></section>
       </section>
 
@@ -76,7 +76,7 @@
         <div class="section-intro"><div><h1>Sales management</h1><p class="muted">Track every sale, daily revenue, estimated gross profit and reprint receipts.</p></div><button class="btn primary" id="recordSaleBtn">＋ Record a sale</button></div>
         <div class="stats-grid sales-stats">
           <article class="stat-card glass"><div class="stat-top"><span>Sales today</span><span class="stat-icon violet">▤</span></div><h2 id="salesTodayCount">0</h2><p class="stat-foot">Completed transactions</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Revenue today</span><span class="stat-icon green">₦</span></div><h2 id="salesTodayRevenue">₦0</h2><p class="stat-foot">Sales value recorded today</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Revenue today</span><span class="stat-icon green">¤</span></div><h2 id="salesTodayRevenue">₦0</h2><p class="stat-foot">Sales value recorded today</p></article>
           <article class="stat-card glass"><div class="stat-top"><span>Gross profit today</span><span class="stat-icon orange">↗</span></div><h2 id="salesTodayProfit">₦0</h2><p class="stat-foot">Revenue less recorded product cost</p></article>
         </div>
         <section class="panel glass"><div class="panel-heading"><div><h3>Sales history</h3><p class="muted">Reprint receipts and review recorded sales.</p></div><input id="salesSearch" class="sales-search" type="search" placeholder="Search receipt, customer or product" aria-label="Search sales"></div>
@@ -198,12 +198,12 @@
       <form id="productForm" class="form-grid">
         <input type="hidden" id="productId">
         <label class="span-2">Product name *<input id="productName" required maxlength="100" placeholder="e.g. Bottled Water 500ml"></label>
-        <label>Brand<input id="productBrand" maxlength="60" placeholder="e.g. Coca-Cola"></label>
-        <label>Model<input id="productModel" maxlength="60" placeholder="e.g. 500ml"></label>
+        <label>Brand / maker<input id="productBrand" maxlength="60" placeholder="e.g. Coca-Cola"></label>
+        <label>Variant / size<input id="productModel" maxlength="60" placeholder="e.g. 500ml"></label>
         <label>Category *<select id="productCategory" required><option value="">Choose category</option><option>Electronics</option><option>Phones</option><option>Laptops</option><option>Accessories</option><option>Audio</option><option>Gaming</option><option>Televisions</option><option>Networking</option><option>Storage</option><option>Power</option><option>Groceries</option><option>Drinks and Beverages</option><option>Food and Snacks</option><option>Household Items</option><option>Personal Care</option><option>Fashion and Clothing</option><option>Shoes and Bags</option><option>Beauty and Cosmetics</option><option>Health Products</option><option>Hardware and Building Materials</option><option>Stationery and Books</option><option>Automotive Parts</option><option>Other</option></select></label>
         <label>Quantity *<input id="productQty" type="number" min="0" step="1" required value="0"></label>
-        <label>Purchase price (₦) *<input id="productBuy" type="number" min="0" step="0.01" required placeholder="0.00"></label>
-        <label>Selling price (₦) *<input id="productSell" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Purchase price *<input id="productBuy" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+        <label>Selling price *<input id="productSell" type="number" min="0" step="0.01" required placeholder="0.00"></label>
         <label>Low-stock threshold<input id="productThreshold" type="number" min="0" step="1" value="3" required></label>
         <label>Product image URL (optional)<input id="productImage" type="url" placeholder="https://..."></label>
         <label class="span-2">Description (optional)<textarea id="productDescription" rows="2" maxlength="500" placeholder="Size, colour, expiry date, details, or warranty..."></textarea></label>
