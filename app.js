@@ -117,13 +117,41 @@
     $("resetPasswordModal").classList.add("hidden");document.body.style.overflow="";$("resetPasswordForm").reset();toast("Password updated successfully.");
   });
   $("onboardingForm").addEventListener("submit",async e=>{
-    e.preventDefault();const msg=$("onboardingMessage"),btn=$("finishOnboardingBtn");msg.textContent="";
-    const company_name=$("onboardingCompany").value.trim();if(!company_name){msg.textContent="Enter your business name to continue.";return;}
+    e.preventDefault();
+    const msg=$("onboardingMessage"),btn=$("finishOnboardingBtn");
+    msg.textContent="";
+    const company_name=$("onboardingCompany").value.trim();
+    if(!company_name){msg.textContent="Enter your business name to continue.";return;}
+    if(!localMode&&(!supabase||!session?.user?.id)){
+      msg.textContent="Your login session is missing or expired. Please sign out, sign in again, and retry.";
+      return;
+    }
     const next={company_name,phone:$("onboardingPhone").value.trim(),email:$("onboardingEmail").value.trim(),address:$("onboardingAddress").value.trim(),currency:$("onboardingCurrency").value,logo_url:"",receipt_footer:defaultSettings.receipt_footer};
     btn.disabled=true;btn.textContent="Saving…";
-    if(localMode){companySettings={...defaultSettings,...next};saveLocal();}
-    else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:session.user.id},{onConflict:"owner_id"});if(error){msg.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor first.":error.message;btn.disabled=false;btn.textContent="Save business and continue";return;}companySettings={...defaultSettings,...next};}
-    btn.disabled=false;btn.textContent="Save business and continue";closeOnboarding();applyCompanyBranding();populateSettingsForm();renderAll();switchView("dashboard");toast("Your business workspace is ready.");
+    try{
+      if(localMode){
+        companySettings={...defaultSettings,...next};saveLocal();
+      }else{
+        const {error}=await supabase.from("company_settings").upsert({...next,owner_id:session.user.id},{onConflict:"owner_id"});
+        if(error){
+          console.error("ElectroStock company setup save failed:",error);
+          if(error.code==="42P01"||/relation .*company_settings.* does not exist/i.test(error.message)){
+            throw new Error("The company settings table is missing. Open Supabase → SQL Editor and run supabase/company_settings_migration.sql from your GitHub repository.");
+          }
+          if(error.code==="42501"||/row-level security|permission denied/i.test(error.message)){
+            throw new Error("Supabase blocked saving company details. Check that the company_settings migration and owner access policy have been applied.");
+          }
+          throw new Error(error.message||"Supabase could not save your company details.");
+        }
+        companySettings={...defaultSettings,...next};
+      }
+      closeOnboarding();applyCompanyBranding();populateSettingsForm();renderAll();switchView("dashboard");toast("Your business workspace is ready.");
+    }catch(error){
+      console.error("ElectroStock onboarding error:",error);
+      msg.textContent=error?.message||"Something went wrong while saving. Please try again.";
+    }finally{
+      btn.disabled=false;btn.textContent="Save business and continue";
+    }
   });
   $("logoutBtn").addEventListener("click",async()=>{if(supabase&&!localMode)await supabase.auth.signOut();session=null;showAuth();setAuthMode("login");});
   async function loadCloud(){
