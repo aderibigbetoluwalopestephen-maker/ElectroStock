@@ -6,7 +6,6 @@
   let supabase = null, session = null, products = [], movements = [], sales = [], localMode = !configured;
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
-  let logoSubscription = {active:false, expires_at:null};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
   const fmtDate = d => new Date(d).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"});
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -115,18 +114,16 @@
   $("logoutBtn").addEventListener("click",async()=>{if(supabase&&!localMode)await supabase.auth.signOut();session=null;showAuth();setAuthMode("login");});
   async function loadCloud(){
     if(localMode)return;
-    const [pr,mv,sv,cs,sub]=await Promise.all([
+    const [pr,mv,sv,cs]=await Promise.all([
       supabase.from("products").select("*").order("created_at",{ascending:false}),
       supabase.from("stock_movements").select("*, products(name)").order("created_at",{ascending:false}).limit(300),
       supabase.from("sales").select("*").order("created_at",{ascending:false}).limit(1000),
-      supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle(),
-      supabase.from("logo_subscriptions").select("status,expires_at").eq("owner_id",session.user.id).maybeSingle()
+      supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle()
     ]);
     if(pr.error){toast("Could not load products: "+pr.error.message);return;}
     products=pr.data||[];movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
     if(sv.error){sales=[];toast("Sales history needs the SQL migration in supabase/sales_migration.sql: "+sv.error.message);}else sales=sv.data||[];
     companySettings={...defaultSettings,...(cs?.data||{})};
-    logoSubscription={active:sub?.data?.status==="active" && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null};
     renderAll();applyCompanyBranding();populateSettingsForm();
     if(!cs?.data && session?.user?.id){openOnboarding();}
   }
@@ -193,7 +190,7 @@
     $("mobileCompanyName").textContent=name;$("footerCompanyName").textContent=name;$("receiptTitle").textContent=name;$("settingsPreviewName").textContent=name;
     const details=[companySettings.phone,companySettings.email,companySettings.address].filter(Boolean).join(" · ");$("receiptBusinessDetails").textContent=details;
     $("receiptFooterMessage").textContent=companySettings.receipt_footer||"Thank you for your patronage!";
-    const activeLogo=hasActiveLogoSubscription()?companySettings.logo_url:"";
+    const activeLogo=companySettings.logo_url||"";
     const logoMarkup=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';
     $("settingsLogoPreview").innerHTML=logoMarkup;$("receiptLogo").innerHTML=logoMarkup;
     ["authBrandLogo","sidebarBrandLogo","mobileBrandLogo"].forEach(id=>{const el=$(id);if(el)el.innerHTML=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';});
@@ -202,7 +199,7 @@
   function populateSettingsForm(){
     if(!$('settingCompanyName'))return;
     $("settingCompanyName").value=companySettings.company_name||"ElectroStock";$("settingPhone").value=companySettings.phone||"";$("settingEmail").value=companySettings.email||"";$("settingAddress").value=companySettings.address||"";$("settingCurrency").value=companySettings.currency||"NGN";$("settingReceiptFooter").value=companySettings.receipt_footer||"Thank you for your patronage!";
-    $("settingsMessage").textContent="";applyCompanyBranding();updateScanPaySetupUI();
+    $("settingsMessage").textContent="";applyCompanyBranding();
   }
   async function uploadCompanyLogo(file){
     if(!file)return {url:companySettings.logo_url,error:null};
@@ -216,63 +213,18 @@
     if(error)return {error};
     const {data}=supabase.storage.from("company-logos").getPublicUrl(path);return {url:data.publicUrl,error:null};
   }
-  function hasActiveLogoSubscription(){return !!(logoSubscription.active && logoSubscription.expires_at && new Date(logoSubscription.expires_at)>new Date());}
+  function hasActiveLogoSubscription(){return true;}
   function updateLogoSubscriptionUI(){
-    const active=hasActiveLogoSubscription();
-    const input=$("settingLogoFile"),button=$("subscribeLogoBtn"),status=$("logoSubscriptionStatus"),help=$("logoUploadHelp");
-    if(input)input.disabled=!active;
-    if(button){button.textContent=active?"Manage subscription":"Subscribe for ₦1,500/month";button.classList.toggle("secondary",active);}
-    if(status)status.textContent=active?`Logo customization is active until ${new Date(logoSubscription.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})}.`:(localMode?"Connect Supabase and configure Paystack to activate secure paid logo customization.":"Logo customization requires an active ₦1,500/month subscription.");
-    if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
+    const input=$("settingLogoFile"),help=$("logoUploadHelp");
+    if(input)input.disabled=false;
+    if(help)help.textContent="Upload your business logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
-  $("subscribeLogoBtn").addEventListener("click",async()=>{
-    const button=$("subscribeLogoBtn"),status=$("logoSubscriptionStatus");
-    const say=message=>{if(status)status.textContent=message;toast(message);};
-    try{
-      if(hasActiveLogoSubscription()){say("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
-      if(localMode||!session?.user){say("Payment is unavailable in demo mode. Sign in with your Supabase account to subscribe.");return;}
-      if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and monthly plan code in config.js.");return;}
-      if(!window.PaystackPop||typeof window.PaystackPop.setup!=="function"){say("Paystack checkout did not load. Check your connection, refresh the page, and try again.");return;}
-      if(!session.user.email){say("Your account has no email address. Add an email to your account before subscribing.");return;}
-      button.disabled=true;button.textContent="Opening secure checkout…";
-      status.textContent="Connecting to Paystack secure checkout…";
-      const handler=window.PaystackPop.setup({
-        key:config.paystackPublicKey,
-        email:session.user.email,
-        plan:config.paystackPlanCode,
-        ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
-        metadata:{owner_id:session.user.id,feature:"logo_customization"},
-        callback:function(response){
-          status.textContent="Payment submitted. Verifying your subscription…";
-          (async function(){
-            try{
-              const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-              if(error||!data?.active){say("Payment reference "+response.reference+" was returned, but subscription verification failed. Contact support with this reference.");return;}
-              logoSubscription={active:true,expires_at:data.expires_at};updateLogoSubscriptionUI();applyCompanyBranding();say("Subscription activated. You can now upload your business logo.");
-            }catch(error){console.error("Logo subscription verification failed:",error);say("Payment reference "+response.reference+" was returned, but verification could not finish. Save this reference and contact support.");}
-            finally{button.disabled=false;updateLogoSubscriptionUI();}
-          })();
-        },
-        onClose:function(){status.textContent="Checkout closed. No payment was confirmed.";button.disabled=false;updateLogoSubscriptionUI();}
-      });
-      if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack could not initialize the checkout window.");
-      handler.openIframe();
-    }catch(error){
-      console.error("Paystack checkout error:",error);
-      const message="Could not open payment checkout: "+(error?.message||"unknown error")+". Refresh the page and try again.";
-      if(status)status.textContent=message;
-      alert(message);
-    }finally{
-      if(button.textContent==="Opening secure checkout…"){button.disabled=false;button.textContent="Subscribe for ₦1,500/month";}
-    }
-  });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
-  $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
+  $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
   $("settingsForm").addEventListener("submit",async e=>{
     e.preventDefault();const btn=$("saveSettingsBtn"),message=$("settingsMessage");message.textContent="";
     const company_name=$("settingCompanyName").value.trim();if(!company_name){message.textContent="Company name is required.";return;}
     const requestedLogo=$("settingLogoFile").files[0];
-    if(requestedLogo && !hasActiveLogoSubscription()){message.textContent="An active ₦1,500/month logo subscription is required before uploading a logo.";return;}
     btn.disabled=true;btn.textContent="Saving…";
     let logo_url=companySettings.logo_url||"";const file=$("settingLogoFile").files[0];
     if(file){const uploaded=await uploadCompanyLogo(file);if(uploaded.error){message.textContent=uploaded.error.message.includes("company-logos")?uploaded.error.message+" — run supabase/company_settings_migration.sql first.":uploaded.error.message;btn.disabled=false;btn.textContent="Save company settings";return;}logo_url=uploaded.url||"";}
@@ -281,75 +233,6 @@
     else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
-  function scanPayCheckoutUrl(){
-    if(!session?.user?.id)return "";
-    const base=window.location.href.split("?")[0].replace(/index\.html$/i,"");
-    return base.replace(/\/$/,"")+"/pay.html?shop="+encodeURIComponent(session.user.id);
-  }
-  function updateScanPaySetupUI(){
-    const panel=$("scanPayConnectedPanel");
-    if(!panel)return;
-    const ready=!!(companySettings.paystack_subaccount_code && companySettings.scan_pay_enabled);
-    panel.classList.toggle("hidden",!ready);
-    if(ready){
-      $("scanPayConnectedStatus").textContent="Connected to Paystack settlement account "+(companySettings.payment_account_name||"")+" •••• "+(companySettings.payment_account_last4||"");
-      $("scanPayPublicLink").value=scanPayCheckoutUrl();
-      if(window.QRCode){
-        $("scanPayQr").innerHTML="";
-        new QRCode($("scanPayQr"),{text:scanPayCheckoutUrl(),width:190,height:190,colorDark:"#101827",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
-      }
-    }
-  }
-  $("scanPayBankCode")?.addEventListener("change",()=>{
-    const wrap=$("scanPayOtherBankWrap");
-    if(wrap)wrap.classList.toggle("hidden",$("scanPayBankCode").value!=="other");
-  });
-  $("scanPaySetupForm")?.addEventListener("submit",async e=>{
-    e.preventDefault();
-    const button=$("scanPayConnectBtn"),messageEl=$("scanPaySetupMessage");
-    messageEl.textContent="";
-    if(localMode||!supabase||!session?.user){messageEl.textContent="Sign in with a real Supabase account to connect a payout account. Demo mode cannot receive payments.";return;}
-    const accountNumber=$("scanPayAccountNumber").value.trim();
-    const selectedBank=$("scanPayBankCode").value.trim();
-    const bankCode=selectedBank==="other"?$("scanPayOtherBankCode").value.trim():selectedBank;
-    if(!bankCode){messageEl.textContent="Choose a listed bank or enter the bank code provided by Paystack.";return;}
-    if(!/^\d{10}$/.test(accountNumber)){messageEl.textContent="Enter a valid 10-digit Nigerian account number.";return;}
-    button.disabled=true;button.textContent="Connecting to Paystack…";
-    try{
-      const {data,error}=await supabase.functions.invoke("setup-paystack-subaccount",{body:{
-        business_name:$("scanPayBusinessName").value.trim()||companySettings.company_name,
-        bank_code:bankCode,
-        account_number:accountNumber
-      }});
-      if(error||!data?.success){
-        let detail=data?.error||data?.message||"";
-        const status=error?.context?.status;
-        if(error?.context&&typeof error.context.clone==="function"){
-          try{
-            const payload=await error.context.clone().json();
-            detail=payload?.error||payload?.message||detail;
-          }catch{
-            try{detail=(await error.context.clone().text())||detail;}catch{}
-          }
-        }
-        messageEl.textContent=(detail||error?.message||"Could not connect the payout account. Check the Edge Function logs.")+(status?" (HTTP "+status+")":"");
-        return;
-      }
-      companySettings={...companySettings,paystack_subaccount_code:"connected",payment_account_name:data.account_name||"",payment_account_last4:data.account_last4||accountNumber.slice(-4),scan_pay_enabled:true};
-      messageEl.textContent="Payout account connected successfully.";
-      $("scanPayAccountNumber").value="";
-      updateScanPaySetupUI();
-      toast("Paystack payout account connected.");
-      await loadCloud();
-    }catch(err){messageEl.textContent=err?.message||"Could not connect the payout account.";}
-    finally{button.disabled=false;button.textContent="Connect payout account";}
-  });
-  $("scanPayCopyLinkBtn")?.addEventListener("click",async()=>{
-    const value=$("scanPayPublicLink").value;
-    try{await navigator.clipboard.writeText(value);toast("Checkout link copied.");}
-    catch{ $("scanPayPublicLink").focus();$("scanPayPublicLink").select();toast("Select and copy the checkout link.");}
-  });
-  $("scanPayRefreshQrBtn")?.addEventListener("click",updateScanPaySetupUI);
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
   async function importInventory(file){
