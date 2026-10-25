@@ -4,6 +4,7 @@
   const configured = config.supabaseUrl && config.supabaseAnonKey &&
     !config.supabaseUrl.includes("YOUR_") && !config.supabaseAnonKey.includes("YOUR_");
   let supabase = null, session = null, products = [], movements = [], sales = [], posCart = [], localMode = !configured;
+  let logoSubscription = {active:false, expires_at:null, error:null};
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
@@ -156,16 +157,19 @@
   $("logoutBtn").addEventListener("click",async()=>{if(supabase&&!localMode)await supabase.auth.signOut();session=null;showAuth();setAuthMode("login");});
   async function loadCloud(){
     if(localMode)return;
-    const [pr,mv,sv,cs]=await Promise.all([
+    const [pr,mv,sv,cs,sub]=await Promise.all([
       supabase.from("products").select("*").order("created_at",{ascending:false}),
       supabase.from("stock_movements").select("*, products(name)").order("created_at",{ascending:false}).limit(300),
       supabase.from("sales").select("*").order("created_at",{ascending:false}).limit(1000),
-      supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle()
+      supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle(),
+      supabase.from("logo_subscriptions").select("status,expires_at").eq("owner_id",session.user.id).maybeSingle()
     ]);
     if(pr.error){products=[];toast("Products could not load: "+pr.error.message);}else products=pr.data||[];
     if(mv.error){movements=[];toast("Stock movements could not load: "+mv.error.message);}else movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
     if(sv.error){sales=[];toast("Sales history needs attention: "+sv.error.message);}else sales=sv.data||[];
     companySettings={...defaultSettings,...(cs?.data||{})};
+    logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
+    if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
     renderAll();applyCompanyBranding();populateSettingsForm();
     if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
     if(!cs?.data && session?.user?.id){openOnboarding();}
@@ -233,7 +237,7 @@
     $("mobileCompanyName").textContent=name;$("footerCompanyName").textContent=name;$("receiptTitle").textContent=name;$("settingsPreviewName").textContent=name;
     const details=[companySettings.phone,companySettings.email,companySettings.address].filter(Boolean).join(" · ");$("receiptBusinessDetails").textContent=details;
     $("receiptFooterMessage").textContent=companySettings.receipt_footer||"Thank you for your patronage!";
-    const activeLogo=companySettings.logo_url||"";
+    const activeLogo=hasActiveLogoSubscription()?companySettings.logo_url:"";
     const logoMarkup=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';
     $("settingsLogoPreview").innerHTML=logoMarkup;$("receiptLogo").innerHTML=logoMarkup;
     ["authBrandLogo","sidebarBrandLogo","mobileBrandLogo"].forEach(id=>{const el=$(id);if(el)el.innerHTML=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';});
@@ -256,18 +260,47 @@
     if(error)return {error};
     const {data}=supabase.storage.from("company-logos").getPublicUrl(path);return {url:data.publicUrl,error:null};
   }
-  function hasActiveLogoSubscription(){return true;}
-  function updateLogoSubscriptionUI(){
-    const input=$("settingLogoFile"),help=$("logoUploadHelp");
-    if(input)input.disabled=false;
-    if(help)help.textContent="Upload your business logo. PNG, JPG or WEBP, maximum 2 MB.";
+  function hasActiveLogoSubscription(){
+    return !localMode && !!(logoSubscription.active && logoSubscription.expires_at && new Date(logoSubscription.expires_at)>new Date());
   }
+  function updateLogoSubscriptionUI(){
+    const active=hasActiveLogoSubscription();
+    const input=$("settingLogoFile"),button=$("subscribeLogoBtn"),status=$("logoSubscriptionStatus"),help=$("logoUploadHelp");
+    if(input)input.disabled=!active;
+    if(button){button.textContent=active?"Subscription active":"Subscribe for ₦1,500/month";button.classList.toggle("secondary",active);}
+    if(status){
+      status.textContent=active
+        ? "Logo customization is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})+"."
+        : (localMode?"Logo subscriptions are available to registered accounts only.":logoSubscription.error?"Subscription status could not be verified. Refresh or contact support.":"An active ₦1,500/month subscription is required to customize your logo.");
+    }
+    if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
+  }
+  $("subscribeLogoBtn").addEventListener("click",()=>{
+    if(hasActiveLogoSubscription()){toast("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
+    if(localMode||!session?.user){toast("Sign in with a registered ElectroStock account to subscribe.");return;}
+    if(logoSubscription.error){toast("Subscription status could not be verified. Refresh and try again.");return;}
+    if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){toast("Paystack subscription is not configured. Check the public key and monthly plan code in config.js.");return;}
+    if(!window.PaystackPop){toast("Paystack checkout could not load. Refresh and try again.");return;}
+    const handler=window.PaystackPop.setup({
+      key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,
+      ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
+      metadata:{owner_id:session.user.id,feature:"logo_customization"},
+      callback:async(response)=>{
+        const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
+        if(error||!data?.active){toast("Payment was received but subscription verification failed. Reference: "+response.reference);return;}
+        logoSubscription={active:true,expires_at:data.expires_at,error:null};updateLogoSubscriptionUI();applyCompanyBranding();toast("Logo subscription activated.");
+      },
+      onClose:()=>toast("Checkout closed. No changes were made.")
+    });
+    handler.openIframe();
+  });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
-  $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
+  $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";$("settingsMessage").textContent="An active ₦1,500/month subscription is required to upload a logo.";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
   $("settingsForm").addEventListener("submit",async e=>{
     e.preventDefault();const btn=$("saveSettingsBtn"),message=$("settingsMessage");message.textContent="";
     const company_name=$("settingCompanyName").value.trim();if(!company_name){message.textContent="Company name is required.";return;}
     const requestedLogo=$("settingLogoFile").files[0];
+    if(requestedLogo&&!hasActiveLogoSubscription()){message.textContent="An active ₦1,500/month subscription is required before uploading a logo.";return;}
     btn.disabled=true;btn.textContent="Saving…";
     let logo_url=companySettings.logo_url||"";const file=$("settingLogoFile").files[0];
     if(file){const uploaded=await uploadCompanyLogo(file);if(uploaded.error){message.textContent=uploaded.error.message.includes("company-logos")?uploaded.error.message+" — run supabase/company_settings_migration.sql first.":uploaded.error.message;btn.disabled=false;btn.textContent="Save company settings";return;}logo_url=uploaded.url||"";}
