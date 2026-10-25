@@ -26,13 +26,15 @@ Deno.serve(async (req) => {
     });
     const result = await response.json();
     if (!response.ok || !result.status || !result.data?.subaccount_code) return reply({ error: result.message || "Paystack could not set up this account. Check the bank code and account details." }, 400);
-    const { error: saveError } = await userClient.from("company_settings").update({
+    const { error: saveError } = await userClient.from("company_settings").upsert({
+      owner_id: user.id,
+      company_name: businessName,
       paystack_subaccount_code: result.data.subaccount_code,
       payment_account_name: String(result.data.account_name || businessName).slice(0, 150),
       payment_bank_code: bankCode,
       payment_account_last4: accountNumber.slice(-4),
       scan_pay_enabled: true,
-    }).eq("owner_id", user.id);
+    }, { onConflict: "owner_id" });
     if (saveError) return reply({ error: "Paystack account was created but settings could not be saved. Run supabase/scan_pay_migration.sql and try again." }, 500);
     return reply({ success: true, account_name: String(result.data.account_name || businessName), account_last4: accountNumber.slice(-4), message: "Payout account connected." });
   } catch (error) {
