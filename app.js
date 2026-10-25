@@ -47,6 +47,9 @@
   function openPasswordReset(){$("resetPasswordMessage").textContent="";$("resetPasswordModal").classList.remove("hidden");document.body.style.overflow="hidden";}
   async function init(){
     $("todayLabel").textContent=new Date().toLocaleDateString("en-NG",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+    const callbackParams=new URLSearchParams(window.location.search);
+    const callbackStatus=callbackParams.get("auth");
+    const callbackError=callbackParams.get("error_description")||callbackParams.get("error");
     if(configured && window.supabase){
       supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);localMode=false;
       const {data:{session:s}}=await supabase.auth.getSession();session=s;
@@ -55,7 +58,18 @@
         if(event==="PASSWORD_RECOVERY"){openPasswordReset();return;}
         if(s){setTimeout(async()=>{showApp();await loadCloud();},0);}else if(event==="SIGNED_OUT"){showAuth();}
       });
-      if(session){showApp();await loadCloud();}else showAuth();
+      if(session){
+        showApp();await loadCloud();
+        if(callbackStatus==="verified")toast("Email verified successfully. Welcome to ElectroStock.");
+      }else{
+        showAuth();
+        if(callbackStatus==="verified"){setAuthMode("login");authMessage("Email verified successfully. Please sign in to continue.");}
+        else if(callbackError){authMessage("Authentication link error: "+callbackError.replace(/\+/g," "));}
+      }
+      if(callbackStatus||callbackError){
+        const cleanUrl=window.location.pathname+window.location.hash;
+        window.history.replaceState({},document.title,cleanUrl);
+      }
     } else {
       localMode=true;readLocal();showAuth();authMessage("Demo mode: configure Supabase to enable real accounts and cloud sync.");
       $("showSignup").textContent="Open demo workspace";$("forgotPasswordBtn").classList.add("hidden");$("password").placeholder="Demo mode — any password";
@@ -74,7 +88,7 @@
       if(!fullName){authMessage("Enter your full name.");return;}
       if(password!==$("confirmPassword").value){authMessage("The passwords do not match.");return;}
       $("loginBtn").disabled=true;$("loginBtn").textContent="Creating account…";
-      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName},emailRedirectTo:window.location.origin}});
+      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName},emailRedirectTo:window.location.origin+"/?auth=verified"}});
       $("loginBtn").disabled=false;$("loginBtn").textContent="Create account";
       if(error){authMessage(error.message);return;}
       if(data.session){session=data.session;showApp();await loadCloud();}
