@@ -3,7 +3,7 @@
   const config = window.ELECTROSTOCK_CONFIG || {};
   const configured = config.supabaseUrl && config.supabaseAnonKey &&
     !config.supabaseUrl.includes("YOUR_") && !config.supabaseAnonKey.includes("YOUR_");
-  let supabase = null, session = null, products = [], movements = [], sales = [], localMode = !configured;
+  let supabase = null, session = null, products = [], movements = [], sales = [], posCart = [], localMode = !configured;
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
@@ -142,7 +142,7 @@
     else {const {error}=await supabase.from("products").delete().eq("id",id);if(error){toast(error.message);return;}await loadCloud();}
     renderAll();toast("Product deleted.");
   }
-  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();applyCompanyBranding();}
+  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderPos();applyCompanyBranding();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
     const low=products.filter(p=>statusOf(p)==="low").length,out=products.filter(p=>statusOf(p)==="out").length;
@@ -166,7 +166,7 @@
   function renderAlerts(){const list=products.filter(p=>statusOf(p)!=="in").sort((a,b)=>Number(a.quantity)-Number(b.quantity)).slice(0,6);$("alertsList").innerHTML=list.length?list.map(p=>`<div class="alert-item"><div class="product-thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="">`:iconFor(p.category)}</div><div class="alert-info"><strong>${esc(p.name)}</strong><small>${esc(p.category||"Uncategorized")} · Reorder at ${Number(p.low_stock_threshold??3)}</small></div><span class="qty-badge ${statusOf(p)}">${statusOf(p)==="out"?"Out of stock":`${p.quantity} left`}</span></div>`).join(""):'<div class="empty-state"><div class="empty-icon">✓</div><h3>All clear</h3><p>No low-stock or out-of-stock alerts.</p></div>';}
   function renderProductOptions(){const current=$("stockProduct").value;$("stockProduct").innerHTML='<option value="">Select a product</option>'+products.map(p=>`<option value="${p.id}" ${p.id===current?"selected":""}>${esc(p.name)} (${p.quantity} available)</option>`).join("");}
   function renderMovements(){const rows=movements.slice(0,100);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",sales:"Sales management",stock:"Stock movement",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();}
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
@@ -175,7 +175,7 @@
   $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
   $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.textContent="↑ Import Excel";e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
-  function openSaleForm(){switchView("stock");$("movementType").value="sale";$("customerFieldWrap").classList.remove("hidden");$("stockProduct").focus();$("stockMessage").textContent="Choose a product and quantity, then save to record the sale.";}
+  function openSaleForm(){switchView("pos");$("posSearch").focus();$("posMessage").textContent="Add products to the cart to start a sale.";}
   $("recordSaleBtn").addEventListener("click",openSaleForm);$("emptyRecordSaleBtn").addEventListener("click",openSaleForm);
   $("mobileMenuBtn").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded",String(open));$("mobileMenuBtn").textContent=open?"×":"☰";});
   $("movementType").addEventListener("change",()=>{$("customerFieldWrap").classList.toggle("hidden",$("movementType").value!=="sale");});
@@ -280,18 +280,93 @@
   }
   function showReceipt(sale){
     const now=new Date(sale.created_at||new Date());
-    applyCompanyBranding();$("receiptNumber").textContent=sale.receipt_number||"—";$("receiptDate").textContent=now.toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});$("receiptCustomer").textContent=sale.customer_name||"Walk-in customer";$("receiptProduct").textContent=[sale.product_name,sale.model].filter(Boolean).join(" · ");$("receiptQty").textContent=String(sale.quantity);$("receiptUnitPrice").textContent=money(sale.unit_selling_price);$("receiptTotal").textContent=money(sale.total_amount);
+    const items=Array.isArray(sale.items)&&sale.items.length?sale.items:[sale];
+    applyCompanyBranding();
+    $("receiptNumber").textContent=sale.receipt_number||items[0]?.receipt_number||"—";
+    $("receiptDate").textContent=now.toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});
+    $("receiptCustomer").textContent=sale.customer_name||items[0]?.customer_name||"Walk-in customer";
+    $("receiptPaymentMethod").textContent=String(sale.payment_method||items[0]?.payment_method||"cash").replace(/^./,c=>c.toUpperCase());
+    $("receiptItems").innerHTML=items.map(item=>'<div class="receipt-item"><div><strong>'+esc(item.product_name||"Product")+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_selling_price)+'</small></div><strong>'+money(item.total_amount)+'</strong></div>').join("");
+    const total=Number(sale.total_amount??items.reduce((sum,item)=>sum+Number(item.total_amount||0),0));
+    $("receiptTotal").textContent=money(total);
     $("receiptModal").classList.remove("hidden");document.body.style.overflow="hidden";
   }
   function renderSales(){
     const today=new Date();const isToday=s=>{const d=new Date(s.created_at);return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();};
-    const todays=sales.filter(isToday);$("salesTodayCount").textContent=todays.length;$("salesTodayRevenue").textContent=money(todays.reduce((sum,s)=>sum+Number(s.total_amount||0),0));$("salesTodayProfit").textContent=money(todays.reduce((sum,s)=>sum+Number(s.gross_profit||0),0));
-    const q=($("salesSearch")?.value||"").trim().toLowerCase();const list=sales.filter(s=>[s.receipt_number,s.product_name,s.customer_name,s.note].join(" ").toLowerCase().includes(q));
-    $("salesTable").innerHTML=list.map(s=>`<tr><td>${fmtDate(s.created_at)}</td><td><strong>${esc(s.receipt_number||"—")}</strong></td><td>${esc(s.product_name||"Deleted product")}</td><td>${esc(s.customer_name||"Walk-in")}</td><td>${Number(s.quantity)||0}</td><td>${money(s.unit_selling_price)}</td><td><strong>${money(s.total_amount)}</strong></td><td>${money(s.gross_profit)}</td><td><button class="mini-btn" data-reprint="${esc(s.id)}">Reprint</button></td></tr>`).join("");
+    const todays=sales.filter(isToday);
+    const groups=new Map();
+    sales.forEach(s=>{
+      const key=s.transaction_ref||s.receipt_number||s.id;
+      if(!groups.has(key))groups.set(key,{...s,items:[],total_amount:0,gross_profit:0,quantity:0});
+      const group=groups.get(key);group.items.push(s);group.total_amount+=Number(s.total_amount||0);group.gross_profit+=Number(s.gross_profit||0);group.quantity+=Number(s.quantity||0);
+      if(new Date(s.created_at||0)<new Date(group.created_at||0))group.created_at=s.created_at;
+    });
+    const receipts=[...groups.values()];
+    const todayGroups=new Map();todays.forEach(s=>{const k=s.transaction_ref||s.receipt_number||s.id;if(!todayGroups.has(k))todayGroups.set(k,[]);todayGroups.get(k).push(s);});
+    $("salesTodayCount").textContent=todayGroups.size;
+    $("salesTodayRevenue").textContent=money(todays.reduce((sum,s)=>sum+Number(s.total_amount||0),0));
+    $("salesTodayProfit").textContent=money(todays.reduce((sum,s)=>sum+Number(s.gross_profit||0),0));
+    const q=($("salesSearch")?.value||"").trim().toLowerCase();
+    const list=receipts.filter(s=>[s.receipt_number,s.transaction_ref,s.customer_name,s.note,...s.items.map(i=>i.product_name)].join(" ").toLowerCase().includes(q));
+    $("salesTable").innerHTML=list.map(s=>'<tr><td>'+fmtDate(s.created_at)+'</td><td><strong>'+esc(s.receipt_number||s.transaction_ref||"—")+'</strong></td><td>'+esc(s.items.map(i=>i.product_name).filter(Boolean).join(", ")||"Deleted product")+'</td><td>'+esc(s.customer_name||"Walk-in")+'</td><td>'+s.quantity+'</td><td>'+money(s.items[0]?.unit_selling_price||0)+'</td><td><strong>'+money(s.total_amount)+'</strong></td><td>'+money(s.gross_profit)+'</td><td><button class="mini-btn" data-reprint="'+esc(String(s.id))+'">Reprint</button></td></tr>').join("");
     $("emptySales").classList.toggle("hidden",list.length>0);
-    $("salesTable").querySelectorAll("[data-reprint]").forEach(b=>b.addEventListener("click",()=>{const sale=sales.find(x=>x.id===b.dataset.reprint);if(sale)showReceipt(sale);}));
+    $("salesTable").querySelectorAll("[data-reprint]").forEach(b=>b.addEventListener("click",()=>{const sale=list.find(x=>String(x.id)===b.dataset.reprint);if(sale)showReceipt(sale);}));
   }
   function closeReceipt(){$("receiptModal").classList.add("hidden");document.body.style.overflow="";}
+  function posCartDetails(){
+    return posCart.map(line=>{const p=products.find(x=>String(x.id)===String(line.product_id));return p?{...line,product:p,quantity:Number(line.quantity),lineTotal:Number(p.selling_price||0)*Number(line.quantity)}:null;}).filter(Boolean);
+  }
+  function renderPos(){
+    const query=($("posSearch")?.value||"").trim().toLowerCase();
+    const matches=products.filter(p=>(Number(p.quantity)||0)>0&&[p.name,p.brand,p.model,p.category].join(" ").toLowerCase().includes(query)).slice(0,40);
+    $("posProductResults").innerHTML=matches.length?matches.map(p=>'<article class="pos-product"><div class="pos-product-info"><strong>'+esc(p.name)+'</strong><small>'+esc([p.brand,p.model,p.category].filter(Boolean).join(" · ")||"Product")+'</small><span>'+money(p.selling_price)+' · '+Number(p.quantity)+' in stock</span></div><button type="button" class="btn secondary pos-add-btn" data-add-pos="'+esc(String(p.id))+'">Add</button></article>').join(""):'<div class="empty-state"><h3>No available products found</h3><p>Try another search or add stock to your catalogue.</p></div>';
+    const details=posCartDetails();
+    $("posCartCount").textContent=details.reduce((sum,line)=>sum+line.quantity,0);
+    $("posCartItems").innerHTML=details.length?details.map(line=>'<div class="pos-cart-item"><div class="pos-cart-item-main"><strong>'+esc(line.product.name)+'</strong><small>'+money(line.product.selling_price)+' each</small><strong>'+money(line.lineTotal)+'</strong></div><div class="pos-quantity-controls"><button type="button" aria-label="Decrease quantity" data-pos-qty="-1" data-pos-id="'+esc(String(line.product_id))+'">−</button><span>'+line.quantity+'</span><button type="button" aria-label="Increase quantity" data-pos-qty="1" data-pos-id="'+esc(String(line.product_id))+'" '+(line.quantity>=Number(line.product.quantity)?"disabled":"")+'>+</button><button type="button" class="pos-remove" data-pos-remove="'+esc(String(line.product_id))+'">Remove</button></div></div>').join(""):'<div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div>';
+    const total=details.reduce((sum,line)=>sum+line.lineTotal,0);
+    $("posSubtotal").textContent=money(total);$("posTotal").textContent=money(total);
+    $("posCompleteBtn").disabled=!details.length;
+  }
+  $("posSearch").addEventListener("input",renderPos);
+  $("posProductResults").addEventListener("click",e=>{
+    const button=e.target.closest("[data-add-pos]");if(!button)return;
+    const id=button.dataset.addPos,p=products.find(x=>String(x.id)===String(id));if(!p)return;
+    const line=posCart.find(x=>String(x.product_id)===String(id));
+    if(line){if(line.quantity>=Number(p.quantity)){toast("No more stock is available for "+p.name+".");return;}line.quantity++;}
+    else posCart.push({product_id:p.id,quantity:1});
+    $("posMessage").textContent="";renderPos();
+  });
+  $("posCartItems").addEventListener("click",e=>{
+    const remove=e.target.closest("[data-pos-remove]"),qty=e.target.closest("[data-pos-qty]");
+    if(remove){posCart=posCart.filter(x=>String(x.product_id)!==String(remove.dataset.posRemove));renderPos();return;}
+    if(qty){const line=posCart.find(x=>String(x.product_id)===String(qty.dataset.posId)),p=products.find(x=>String(x.id)===String(qty.dataset.posId));if(!line||!p)return;
+      const next=line.quantity+Number(qty.dataset.posQty);if(next<1)posCart=posCart.filter(x=>String(x.product_id)!==String(qty.dataset.posId));else if(next<=Number(p.quantity))line.quantity=next;else toast("Quantity exceeds available stock.");renderPos();}
+  });
+  $("clearPosCartBtn").addEventListener("click",()=>{posCart=[];$("posMessage").textContent="";renderPos();});
+  $("posCheckoutForm").addEventListener("submit",async e=>{
+    e.preventDefault();const details=posCartDetails(),message=$("posMessage"),button=$("posCompleteBtn");
+    if(!details.length){message.textContent="Add at least one product to the cart.";return;}
+    for(const line of details){if(line.quantity<1||line.quantity>Number(line.product.quantity)){message.textContent="Stock changed for "+line.product.name+". Refresh and review the cart.";return;}}
+    const customer=$("posCustomer").value.trim()||"Walk-in customer",note=$("posNote").value.trim(),paymentMethod=$("posPaymentMethod").value;
+    button.disabled=true;button.textContent="Processing sale…";message.textContent="";
+    try{
+      let receipt;
+      if(localMode){
+        const createdAt=new Date().toISOString(),receiptNo="ES-"+createdAt.replace(/[-:TZ.]/g,"").slice(0,14)+"-"+Math.random().toString(36).slice(2,8).toUpperCase();
+        const lines=details.map(line=>{const p=line.product,qty=line.quantity;return{id:crypto.randomUUID(),owner_id:session?.user?.id||null,product_id:p.id,product_name:p.name,brand:p.brand||null,model:p.model||null,quantity:qty,unit_purchase_price:Number(p.purchase_price||0),unit_selling_price:Number(p.selling_price||0),total_amount:Number(p.selling_price||0)*qty,gross_profit:(Number(p.selling_price||0)-Number(p.purchase_price||0))*qty,customer_name:customer,note:note||null,receipt_number:receiptNo,transaction_ref:receiptNo,payment_method:paymentMethod,created_at:createdAt};});
+        for(const line of details){const p=line.product;products=products.map(x=>String(x.id)===String(p.id)?{...x,quantity:Number(x.quantity)-line.quantity}:x);movements.unshift({id:crypto.randomUUID(),product_id:p.id,product_name:p.name,movement_type:"sale",quantity_change:-line.quantity,note:"Receipt: "+receiptNo+" | "+paymentMethod,created_at:createdAt});}
+        sales.unshift(...lines);saveLocal();
+        receipt={receipt_number:receiptNo,transaction_ref:receiptNo,customer_name:customer,payment_method:paymentMethod,created_at:createdAt,total_amount:lines.reduce((s,x)=>s+x.total_amount,0),gross_profit:lines.reduce((s,x)=>s+x.gross_profit,0),items:lines};
+      }else{
+        const {data,error}=await supabase.rpc("record_sale_cart",{p_items:details.map(line=>({product_id:line.product.id,quantity:line.quantity})),p_customer_name:customer,p_note:note||null,p_payment_method:paymentMethod});
+        if(error)throw error;
+        receipt=data;await loadCloud();
+      }
+      posCart=[];$("posCustomer").value="";$("posNote").value="";renderAll();renderPos();
+      message.textContent="Sale recorded successfully.";toast("Sale recorded and stock updated.");showReceipt(receipt);switchView("sales");
+    }catch(error){message.textContent=error?.message||"Could not complete the sale. Please try again.";}
+    finally{button.textContent="Complete sale";renderPos();}
+  });
   $("refreshBtn").addEventListener("click",async()=>{if(localMode)readLocal();else await loadCloud();renderAll();toast("Inventory refreshed.");});
   function openModal(id=null){
     $("productForm").reset();$("productId").value="";$("productThreshold").value=3;$("productQty").value=0;$("productMessage").textContent="";$("modalTitle").textContent=id?"Edit product":"Add product";$("saveProductBtn").textContent=id?"Save changes":"Save product";
