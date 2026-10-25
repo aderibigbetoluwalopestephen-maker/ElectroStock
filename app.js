@@ -321,7 +321,20 @@
         bank_code:bankCode,
         account_number:accountNumber
       }});
-      if(error||!data?.success){messageEl.textContent=data?.error||error?.message||"Could not connect the payout account. Check your Edge Function deployment.";return;}
+      if(error||!data?.success){
+        let detail=data?.error||data?.message||"";
+        const status=error?.context?.status;
+        if(error?.context&&typeof error.context.clone==="function"){
+          try{
+            const payload=await error.context.clone().json();
+            detail=payload?.error||payload?.message||detail;
+          }catch{
+            try{detail=(await error.context.clone().text())||detail;}catch{}
+          }
+        }
+        messageEl.textContent=(detail||error?.message||"Could not connect the payout account. Check the Edge Function logs.")+(status?" (HTTP "+status+")":"");
+        return;
+      }
       companySettings={...companySettings,paystack_subaccount_code:"connected",payment_account_name:data.account_name||"",payment_account_last4:data.account_last4||accountNumber.slice(-4),scan_pay_enabled:true};
       messageEl.textContent="Payout account connected successfully.";
       $("scanPayAccountNumber").value="";
