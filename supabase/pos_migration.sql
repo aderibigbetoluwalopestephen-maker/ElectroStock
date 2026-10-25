@@ -40,8 +40,8 @@ begin
     from jsonb_to_recordset(p_items) as x(product_id uuid, quantity integer)
     group by x.product_id
   loop
-    v_product_id := (v_item.value->>'product_id')::uuid;
-    v_qty := (v_item.value->>'quantity')::integer;
+    v_product_id := (v_item->>'product_id')::uuid;
+    v_qty := (v_item->>'quantity')::integer;
     if v_product_id is null then raise exception 'Each cart item must include a valid product.'; end if;
     if v_qty is null or v_qty < 1 then raise exception 'Each item quantity must be at least 1.'; end if;
     select * into v_product from public.products
