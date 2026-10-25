@@ -148,6 +148,10 @@
                 </select>
                 <span class="tiny muted">Institution availability and bank codes must be confirmed against Paystack's current list.</span>
               </label>
+              <div id="scanPayOtherBankWrap" class="span-2 hidden">
+                <label>Paystack bank code<input id="scanPayOtherBankCode" inputmode="numeric" maxlength="20" placeholder="Enter the bank code supplied by Paystack"></label>
+                <p class="tiny muted">Use the exact settlement bank code from Paystack. Do not enter your account number here.</p>
+              </div>
               <label>10-digit settlement account number<input id="scanPayAccountNumber" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required placeholder="0123456789"></label>
               <div class="span-2"><button class="btn primary" type="submit" id="scanPayConnectBtn">Connect payout account</button><p id="scanPaySetupMessage" class="form-message" aria-live="polite"></p></div>
             </form>
