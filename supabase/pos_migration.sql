@@ -99,3 +99,6 @@ end;
 $$;
 revoke all on function public.record_sale_cart(jsonb, text, text, text) from public;
 grant execute on function public.record_sale_cart(jsonb, text, text, text) to authenticated;
+
+-- Ask PostgREST (Supabase API) to refresh its function schema cache.
+notify pgrst, 'reload schema';
