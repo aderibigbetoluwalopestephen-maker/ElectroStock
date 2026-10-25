@@ -134,11 +134,12 @@
       supabase.from("sales").select("*").order("created_at",{ascending:false}).limit(1000),
       supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle()
     ]);
-    if(pr.error){toast("Could not load products: "+pr.error.message);return;}
-    products=pr.data||[];movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
-    if(sv.error){sales=[];toast("Sales history needs the SQL migration in supabase/sales_migration.sql: "+sv.error.message);}else sales=sv.data||[];
+    if(pr.error){products=[];toast("Products could not load: "+pr.error.message);}else products=pr.data||[];
+    if(mv.error){movements=[];toast("Stock movements could not load: "+mv.error.message);}else movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
+    if(sv.error){sales=[];toast("Sales history needs attention: "+sv.error.message);}else sales=sv.data||[];
     companySettings={...defaultSettings,...(cs?.data||{})};
     renderAll();applyCompanyBranding();populateSettingsForm();
+    if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
     if(!cs?.data && session?.user?.id){openOnboarding();}
   }
   async function saveProduct(data,id){
