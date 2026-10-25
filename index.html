@@ -13,7 +13,7 @@
   <div id="authScreen" class="auth-screen">
     <div class="auth-card glass">
       <div class="brand-mark logo-slot" id="authBrandLogo">E<span>+</span></div>
-      <p class="eyebrow">PERSONAL INVENTORY</p>
+      <p class="eyebrow">BUSINESS INVENTORY</p>
       <h1 id="authHeading">Welcome to <span>ElectroStock</span></h1>
       <p class="muted" id="authSubtitle">Sign in to manage your business inventory.</p>
       <form id="loginForm">
@@ -67,8 +67,8 @@
       </section>
 
       <section id="productsView" class="view hidden">
-        <div class="section-intro"><div><h1>Product catalogue</h1><p class="muted">Manage your electronics, pricing and quantities.</p></div><button class="btn primary" id="addProductBtn">＋ Add product</button></div>
-        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search name, brand, model or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
+        <div class="section-intro"><div><h1>Product catalogue</h1><p class="muted">Manage products, pricing and stock for your business.</p></div><button class="btn primary" id="addProductBtn">＋ Add product</button></div>
+        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search product name, brand, model or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
         <section class="panel glass"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>BUY PRICE</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th><th></th></tr></thead><tbody id="productsTable"></tbody></table><div id="emptyProducts" class="empty-state hidden"><div class="empty-icon">▤</div><h3>No products found</h3><p>Add your first product or adjust your search.</p><button class="btn primary" id="emptyAddBtn">＋ Add product</button></div></div></section>
       </section>
 
@@ -107,7 +107,7 @@
             <button class="btn primary" type="button" id="subscribeLogoBtn">Subscribe for ₦1,500/month</button>
           </section>
           <form id="settingsForm" class="form-grid">
-            <label class="span-2">Company / store name *<input id="settingCompanyName" maxlength="100" required placeholder="e.g. Ade Electronics"></label>
+            <label class="span-2">Company / store name *<input id="settingCompanyName" maxlength="100" required placeholder="e.g. Ade Mini Mart"></label>
             <label>Business phone<input id="settingPhone" maxlength="40" type="tel" placeholder="Phone number"></label>
             <label>Business email<input id="settingEmail" maxlength="150" type="email" placeholder="business@example.com"></label>
             <label class="span-2">Business address<input id="settingAddress" maxlength="220" placeholder="Street, city, country"></label>
@@ -120,7 +120,7 @@
           <section class="panel glass scan-pay-settings">
             <div class="panel-heading"><div><p class="eyebrow">CUSTOMER CHECKOUT</p><h3>Scan &amp; Pay with Paystack</h3><p class="muted">Connect this shop's settlement account, then share a QR code so customers can browse products and pay online.</p></div></div>
             <form id="scanPaySetupForm" class="form-grid">
-              <label class="span-2">Paystack business / store name<input id="scanPayBusinessName" maxlength="100" required placeholder="e.g. Ade Electronics"></label>
+              <label class="span-2">Paystack business / store name<input id="scanPayBusinessName" maxlength="100" required placeholder="e.g. Ade Mini Mart"></label>
               <label>Bank / payment institution
                 <select id="scanPayBankCode" required>
                   <option value="">Choose your bank</option>
@@ -172,7 +172,7 @@
       <p class="eyebrow">FIRST-TIME SETUP</p><h2 id="onboardingTitle">Set up your business</h2>
       <p class="muted onboarding-copy">Tell us about your store. You can change these details later in Company Settings.</p>
       <form id="onboardingForm" class="form-grid">
-        <label class="span-2">Company / store name *<input id="onboardingCompany" required maxlength="100" placeholder="e.g. Ade Electronics"></label>
+        <label class="span-2">Company / store name *<input id="onboardingCompany" required maxlength="100" placeholder="e.g. Ade Mini Mart"></label>
         <label>Business phone<input id="onboardingPhone" type="tel" maxlength="40" placeholder="Phone number"></label>
         <label>Business email<input id="onboardingEmail" type="email" maxlength="150" placeholder="business@example.com"></label>
         <label class="span-2">Business address<input id="onboardingAddress" maxlength="220" placeholder="City, country"></label>
@@ -197,16 +197,16 @@
     <div class="modal glass"><div class="modal-heading"><div><p class="eyebrow">PRODUCT DETAILS</p><h2 id="modalTitle">Add product</h2></div><button class="icon-btn" id="closeModal" aria-label="Close">×</button></div>
       <form id="productForm" class="form-grid">
         <input type="hidden" id="productId">
-        <label class="span-2">Product name *<input id="productName" required maxlength="100" placeholder="e.g. Samsung Galaxy A55"></label>
-        <label>Brand<input id="productBrand" maxlength="60" placeholder="e.g. Samsung"></label>
-        <label>Model<input id="productModel" maxlength="60" placeholder="e.g. SM-A556E"></label>
-        <label>Category *<select id="productCategory" required><option value="">Choose category</option><option>Phones</option><option>Laptops</option><option>Accessories</option><option>Audio</option><option>Gaming</option><option>Televisions</option><option>Networking</option><option>Storage</option><option>Power</option><option>Other</option></select></label>
+        <label class="span-2">Product name *<input id="productName" required maxlength="100" placeholder="e.g. Bottled Water 500ml"></label>
+        <label>Brand<input id="productBrand" maxlength="60" placeholder="e.g. Coca-Cola"></label>
+        <label>Model<input id="productModel" maxlength="60" placeholder="e.g. 500ml"></label>
+        <label>Category *<select id="productCategory" required><option value="">Choose category</option><option>Electronics</option><option>Phones</option><option>Laptops</option><option>Accessories</option><option>Audio</option><option>Gaming</option><option>Televisions</option><option>Networking</option><option>Storage</option><option>Power</option><option>Groceries</option><option>Drinks and Beverages</option><option>Food and Snacks</option><option>Household Items</option><option>Personal Care</option><option>Fashion and Clothing</option><option>Shoes and Bags</option><option>Beauty and Cosmetics</option><option>Health Products</option><option>Hardware and Building Materials</option><option>Stationery and Books</option><option>Automotive Parts</option><option>Other</option></select></label>
         <label>Quantity *<input id="productQty" type="number" min="0" step="1" required value="0"></label>
         <label>Purchase price (₦) *<input id="productBuy" type="number" min="0" step="0.01" required placeholder="0.00"></label>
         <label>Selling price (₦) *<input id="productSell" type="number" min="0" step="0.01" required placeholder="0.00"></label>
         <label>Low-stock threshold<input id="productThreshold" type="number" min="0" step="1" value="3" required></label>
         <label>Product image URL (optional)<input id="productImage" type="url" placeholder="https://..."></label>
-        <label class="span-2">Description (optional)<textarea id="productDescription" rows="2" maxlength="500" placeholder="Colour, storage, condition, warranty..."></textarea></label>
+        <label class="span-2">Description (optional)<textarea id="productDescription" rows="2" maxlength="500" placeholder="Size, colour, expiry date, details, or warranty..."></textarea></label>
         <p id="productMessage" class="form-message span-2"></p>
         <div class="modal-actions span-2"><button type="button" class="btn secondary" id="cancelModal">Cancel</button><button type="submit" class="btn primary" id="saveProductBtn">Save product</button></div>
       </form>
