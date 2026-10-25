@@ -29,15 +29,20 @@ declare
   v_customer text := coalesce(nullif(trim(p_customer_name), ''), 'Walk-in customer');
 begin
   if v_owner is null then raise exception 'You must sign in to record a sale.'; end if;
-  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
     raise exception 'Add at least one product to the cart.';
   end if;
   if jsonb_array_length(p_items) > 100 then raise exception 'A sale cannot contain more than 100 cart lines.'; end if;
 
   -- Validate and lock every product before changing any stock.
-  for v_item in select value from jsonb_array_elements(p_items) loop
-    v_product_id := (v_item->>'product_id')::uuid;
-    v_qty := (v_item->>'quantity')::integer;
+  for v_item in
+    select jsonb_build_object('product_id', x.product_id, 'quantity', sum(x.quantity)) as value
+    from jsonb_to_recordset(p_items) as x(product_id uuid, quantity integer)
+    group by x.product_id
+  loop
+    v_product_id := (v_item.value->>'product_id')::uuid;
+    v_qty := (v_item.value->>'quantity')::integer;
+    if v_product_id is null then raise exception 'Each cart item must include a valid product.'; end if;
     if v_qty is null or v_qty < 1 then raise exception 'Each item quantity must be at least 1.'; end if;
     select * into v_product from public.products
       where id = v_product_id and owner_id = v_owner for update;
@@ -67,7 +72,7 @@ begin
       v_product.selling_price*v_qty,
       (v_product.selling_price-v_product.purchase_price)*v_qty,
       v_customer, nullif(trim(p_note), ''), v_receipt, v_receipt,
-      case when lower(coalesce(p_payment_method,'cash')) in ('cash','bank transfer','card / pos terminal','other') then lower(p_payment_method) else 'cash' end
+      case when lower(coalesce(p_payment_method,'cash')) in ('cash','bank transfer','card / pos terminal','other') then lower(coalesce(p_payment_method,'cash')) else 'cash' end
     ) returning * into v_sale;
 
     insert into public.stock_movements(owner_id, product_id, movement_type, quantity_change, note)
@@ -89,7 +94,7 @@ begin
 
   return jsonb_build_object('receipt_number',v_receipt,'transaction_ref',v_receipt,
     'customer_name',v_customer,'created_at',now(),'total_amount',v_total,
-    'gross_profit',v_profit,'payment_method',case when lower(coalesce(p_payment_method,'cash')) in ('cash','bank transfer','card / pos terminal','other') then lower(p_payment_method) else 'cash' end,'items',v_lines);
+    'gross_profit',v_profit,'payment_method',case when lower(coalesce(p_payment_method,'cash')) in ('cash','bank transfer','card / pos terminal','other') then lower(coalesce(p_payment_method,'cash')) else 'cash' end,'items',v_lines);
 end;
 $$;
 revoke all on function public.record_sale_cart(jsonb, text, text, text) from public;
