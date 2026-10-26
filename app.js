@@ -158,13 +158,16 @@
   });
   $("logoutBtn").addEventListener("click",async()=>{if(supabase&&!localMode)await supabase.auth.signOut();session=null;showAuth();setAuthMode("login");});
   async function loadCloud(){
-    if(localMode)return;
+    if(localMode||!session?.user?.id)return;
+    teamOwnerId=session.user.id;currentRole="owner";
+    const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
+    if(membership.data){teamOwnerId=membership.data.owner_id;currentRole=membership.data.role||"sales_rep";}
     const [pr,mv,sv,cs,sub]=await Promise.all([
       supabase.from("products").select("*").order("created_at",{ascending:false}),
       supabase.from("stock_movements").select("*, products(name)").order("created_at",{ascending:false}).limit(300),
       supabase.from("sales").select("*").order("created_at",{ascending:false}).limit(1000),
-      supabase.from("company_settings").select("*").eq("owner_id",session.user.id).maybeSingle(),
-      supabase.from("logo_subscriptions").select("status,expires_at").eq("owner_id",session.user.id).maybeSingle()
+      supabase.from("company_settings").select("*").eq("owner_id",teamOwnerId).maybeSingle(),
+      supabase.from("logo_subscriptions").select("status,expires_at").eq("owner_id",teamOwnerId).maybeSingle()
     ]);
     if(pr.error){products=[];toast("Products could not load: "+pr.error.message);}else products=pr.data||[];
     if(mv.error){movements=[];toast("Stock movements could not load: "+mv.error.message);}else movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
@@ -175,7 +178,7 @@
     renderAll();applyCompanyBranding();populateSettingsForm();
     await loadTeamData();
     if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
-    if(!cs?.data && session?.user?.id){openOnboarding();}
+    if(!cs?.data && session?.user?.id && currentRole==="owner"){openOnboarding();}
   }
   async function saveProduct(data,id){
     if(localMode){
@@ -249,7 +252,7 @@
   function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","chat","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",chat:"Chat",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));}
   document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>showTeamTab(b.dataset.teamTab)));
   async function refreshTeam(){if(localMode){toast("Connect Supabase to use team features.");return;}await loadTeamData();}
-  $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
+  $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
   $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message});if(z.error){$("teamChatMessage").textContent=z.error.message;return;}$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
   $("refreshChatBtn").addEventListener("click",refreshTeam);
   $("floatingChatBtn").addEventListener("click",async()=>{switchView("team");showTeamTab("chat");await loadTeamData();$("teamChatText").focus();});
@@ -291,7 +294,12 @@
   function populateSettingsForm(){
     if(!$('settingCompanyName'))return;
     $("settingCompanyName").value=companySettings.company_name||"ElectroStock";$("settingPhone").value=companySettings.phone||"";$("settingEmail").value=companySettings.email||"";$("settingAddress").value=companySettings.address||"";$("settingCurrency").value=companySettings.currency||"NGN";$("settingReceiptFooter").value=companySettings.receipt_footer||"Thank you for your patronage!";
-    $("settingsMessage").textContent="";applyCompanyBranding();
+    const ownerOnly=currentRole!=="owner";
+    ["settingCompanyName","settingPhone","settingEmail","settingAddress","settingCurrency","settingLogoFile","settingReceiptFooter"].forEach(id=>{const el=$(id);if(el)el.disabled=ownerOnly;});
+    $("saveSettingsBtn").classList.toggle("hidden",ownerOnly);
+    $("subscribeLogoBtn").classList.toggle("hidden",ownerOnly);
+    $("settingsMessage").textContent=ownerOnly?"Company settings are view-only. Ask the store owner to change business details, currency, or receipt settings.":"";
+    applyCompanyBranding();
   }
   async function uploadCompanyLogo(file){
     if(!file)return {url:companySettings.logo_url,error:null};
@@ -377,7 +385,7 @@
     if(file){const uploaded=await uploadCompanyLogo(file);if(uploaded.error){message.textContent=uploaded.error.message.includes("company-logos")?uploaded.error.message+" — run supabase/company_settings_migration.sql first.":uploaded.error.message;btn.disabled=false;btn.textContent="Save company settings";return;}logo_url=uploaded.url||"";}
     const next={company_name,phone:$("settingPhone").value.trim(),email:$("settingEmail").value.trim(),address:$("settingAddress").value.trim(),currency:$("settingCurrency").value,logo_url,receipt_footer:$("settingReceiptFooter").value.trim()||"Thank you for your patronage!"};
     if(localMode){companySettings={...defaultSettings,...next};saveLocal();}
-    else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
+    else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:teamOwnerId||session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
