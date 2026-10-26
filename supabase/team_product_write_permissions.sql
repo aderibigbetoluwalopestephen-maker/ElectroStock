@@ -25,7 +25,7 @@ with check (
       select 1
       from public.products p
       where p.id = product_id
-        and p.owner_id = owner_id
+        and p.owner_id = stock_movements.owner_id
     )
   )
 );
