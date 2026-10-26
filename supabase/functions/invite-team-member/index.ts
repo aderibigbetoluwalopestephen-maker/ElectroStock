@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(url, serviceKey);
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: displayName, store_owner_id: ownerId, store_role: role },
-    redirectTo: "https://electrostock-tan.vercel.app/",
+    redirectTo: "https://electrostock-tan.vercel.app/?auth=invite",
   });
   if (inviteError || !invited.user) return new Response(JSON.stringify({ error: inviteError?.message || "Could not create invitation." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
