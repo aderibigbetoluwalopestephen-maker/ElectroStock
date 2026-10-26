@@ -45,7 +45,7 @@
     $("onboardingMessage").textContent="";$("onboardingModal").classList.remove("hidden");document.body.style.overflow="hidden";
   }
   function closeOnboarding(){ $("onboardingModal").classList.add("hidden");document.body.style.overflow=""; }
-  function openPasswordReset(){$("resetPasswordMessage").textContent="";$("resetPasswordModal").classList.remove("hidden");document.body.style.overflow="hidden";}
+  function openPasswordReset(isInvite=false){$("resetPasswordMessage").textContent="";$("resetPasswordTitle").textContent=isInvite?"Set your ElectroStock password":"Choose a new password";$("saveNewPasswordBtn").textContent=isInvite?"Save password":"Update password";$("resetPasswordModal").classList.remove("hidden");document.body.style.overflow="hidden";}
   async function init(){
     $("todayLabel").textContent=new Date().toLocaleDateString("en-NG",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
     const callbackParams=new URLSearchParams(window.location.search);
@@ -61,14 +61,16 @@
       });
       if(session){
         showApp();await loadCloud();
+        if(callbackStatus==="invite"){openPasswordReset(true);}
         if(callbackStatus==="verified")toast("Email verified successfully. Welcome to ElectroStock.");
       }else{
         showAuth();
         if(callbackStatus==="verified"){setAuthMode("login");authMessage("Email verified successfully. Please sign in to continue.");}
+        else if(callbackStatus==="invite"){authMessage("Invitation link did not create a session. Ask the store owner to send a new invitation, or use Forgot password? if you already accepted it.");}
         else if(callbackError){authMessage("Authentication link error: "+callbackError.replace(/\+/g," "));}
       }
       if(callbackStatus||callbackError){
-        const cleanUrl=window.location.pathname+window.location.hash;
+        const cleanUrl=window.location.pathname;
         window.history.replaceState({},document.title,cleanUrl);
       }
     } else {
