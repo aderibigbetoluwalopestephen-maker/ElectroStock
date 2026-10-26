@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
   const { data: userData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !userData.user) return new Response(JSON.stringify({ error: "Your session is invalid or expired." }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-  let body: { owner_id?: string; display_name?: string; email?: string; phone?: string | null; role?: string };
+  let body: { owner_id?: string; display_name?: string; email?: string; password?: string; phone?: string | null; role?: string };
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid request body." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const ownerId = userData.user.id;
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
   const email = (body.email || "").trim().toLowerCase();
   const role = body.role;
   if (body.owner_id !== ownerId) return new Response(JSON.stringify({ error: "Only the owner can invite staff for their own store." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  if (!displayName || !email || !["manager", "sales_rep"].includes(role || "")) return new Response(JSON.stringify({ error: "Enter a name, valid email, and supported role." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  if (!displayName || !email || !body.password || body.password.length < 8 || !["manager", "sales_rep"].includes(role || "")) return new Response(JSON.stringify({ error: "Enter a name, valid email, password of at least 8 characters, and supported role." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   const admin = createClient(url, serviceKey);
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -39,6 +39,9 @@ Deno.serve(async (req: Request) => {
     redirectTo: "https://electrostock-tan.vercel.app/?auth=invite",
   });
   if (inviteError || !invited.user) return new Response(JSON.stringify({ error: inviteError?.message || "Could not create invitation." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  const { error: passwordError } = await admin.auth.admin.updateUserById(invited.user.id, { password: body.password });
+  if (passwordError) return new Response(JSON.stringify({ error: "Invitation was created, but the initial password could not be set: " + passwordError.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   const { error: memberError } = await admin.from("store_members").upsert({
     owner_id: ownerId,
