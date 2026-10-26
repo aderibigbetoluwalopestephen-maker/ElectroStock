@@ -156,7 +156,7 @@
       btn.disabled=false;btn.textContent="Save business and continue";
     }
   });
-  $("logoutBtn").addEventListener("click",async()=>{if(supabase&&!localMode)await supabase.auth.signOut();session=null;showAuth();setAuthMode("login");});
+  $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();updateChatBadge();showAuth();setAuthMode("login");});
   async function loadCloud(){
     if(localMode||!session?.user?.id)return;
     teamOwnerId=session.user.id;currentRole="owner";
@@ -221,6 +221,29 @@
   function renderMovements(){const rows=movements.slice(0,100);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
 
   let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
+  let teamMessageChannel=null,chatUnreadCount=0;
+  const seenChatMessageIds=new Set();
+  const chatStorageKey=()=>`electrostock_chat_seen_${session?.user?.id||"guest"}`;
+  function loadSeenChatIds(){try{JSON.parse(sessionStorage.getItem(chatStorageKey())||"[]").forEach(id=>seenChatMessageIds.add(id));}catch{}}
+  function saveSeenChatIds(){try{sessionStorage.setItem(chatStorageKey(),JSON.stringify([...seenChatMessageIds].slice(-500)));}catch{}}
+  function updateChatBadge(){const badge=$("chatUnreadBadge"),button=$("floatingChatBtn");if(!badge||!button)return;badge.textContent=chatUnreadCount>99?"99+":String(chatUnreadCount);badge.classList.toggle("hidden",chatUnreadCount===0);button.classList.toggle("has-unread",chatUnreadCount>0);button.setAttribute("aria-label",chatUnreadCount?`Open internal team chat, ${chatUnreadCount} unread messages`:"Open internal team chat");}
+  function markChatRead(){chatUnreadCount=0;teamMessages.forEach(m=>seenChatMessageIds.add(m.id));saveSeenChatIds();updateChatBadge();}
+  function stopTeamMessageNotifications(){if(teamMessageChannel&&supabase){supabase.removeChannel(teamMessageChannel);teamMessageChannel=null;}}
+  function startTeamMessageNotifications(){
+    stopTeamMessageNotifications();
+    if(localMode||!supabase||!session?.user?.id||!teamOwnerId)return;
+    teamMessageChannel=supabase.channel("electrostock-chat-"+teamOwnerId+"-"+session.user.id)
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"team_messages",filter:"owner_id=eq."+teamOwnerId},payload=>{
+        const message=payload.new;if(!message?.id||message.sender_id===session?.user?.id||seenChatMessageIds.has(message.id))return;
+        seenChatMessageIds.add(message.id);saveSeenChatIds();teamMessages.push(message);
+        const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
+        if(!chatOpen){chatUnreadCount++;updateChatBadge();}
+        const sender=teamMembers.find(m=>m.user_id===message.sender_id)?.display_name||(message.sender_id===teamOwnerId?"Store owner":"Team member");
+        toast("New message from "+sender+": "+String(message.message||"").slice(0,70));
+        if(document.hidden&&"Notification" in window&&Notification.permission==="granted"){try{new Notification("ElectroStock · "+sender,{body:String(message.message||"New message").slice(0,120),tag:"electrostock-message-"+message.id});}catch{}}
+        renderTeam();
+      }).subscribe();
+  }
   const canManageStaff=()=>currentRole==="owner";
   const canManageProducts=()=>["owner","manager"].includes(currentRole);
   const teamDate=v=>v?new Date(v).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"}):"—";
@@ -235,7 +258,11 @@
       supabase.from("store_announcements").select("*").eq("owner_id",teamOwnerId).order("created_at",{ascending:false}).limit(100),
       supabase.from("staff_attendance").select("*").eq("owner_id",teamOwnerId).order("clock_in",{ascending:false}).limit(300)
     ]);
-    teamMembers=r[0].data||[];teamMessages=r[1].data||[];teamAnnouncements=r[2].data||[];attendanceRows=r[3].data||[];renderTeam();
+    teamMembers=r[0].data||[];teamMessages=r[1].data||[];teamAnnouncements=r[2].data||[];attendanceRows=r[3].data||[];
+    loadSeenChatIds();
+    const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
+    teamMessages.forEach(m=>{if(m.sender_id===session?.user?.id){seenChatMessageIds.add(m.id);return;}if(!seenChatMessageIds.has(m.id)){if(chatOpen)seenChatMessageIds.add(m.id);else chatUnreadCount++;}});
+    saveSeenChatIds();updateChatBadge();startTeamMessageNotifications();renderTeam();
   }
   function renderTeam(){
     $("teamStaffTable").innerHTML=teamMembers.length?teamMembers.map(m=>"<tr><td>"+esc(m.display_name)+"</td><td>"+esc(m.email)+"</td><td>"+(m.role==="manager"?"Manager":"Sales Rep")+"</td><td>"+(m.active?"Active":"Disabled")+"</td><td>"+(canManageStaff()?'<button class="mini-btn" data-member-toggle="'+m.id+'">'+(m.active?"Disable":"Enable")+"</button>":"—")+"</td></tr>").join(""):'<tr><td colspan="5">No staff members yet.</td></tr>';
@@ -253,9 +280,9 @@
   document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>showTeamTab(b.dataset.teamTab)));
   async function refreshTeam(){if(localMode){toast("Connect Supabase to use team features.");return;}await loadTeamData();}
   $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
-  $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message});if(z.error){$("teamChatMessage").textContent=z.error.message;return;}$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
+  $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message}).select("id");if(z.error){$("teamChatMessage").textContent=z.error.message;return;}if(z.data?.[0]?.id)seenChatMessageIds.add(z.data[0].id);$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
   $("refreshChatBtn").addEventListener("click",refreshTeam);
-  $("floatingChatBtn").addEventListener("click",async()=>{switchView("team");showTeamTab("chat");await loadTeamData();$("teamChatText").focus();});
+  $("floatingChatBtn").addEventListener("click",async()=>{switchView("team");showTeamTab("chat");markChatRead();await loadTeamData();markChatRead();$("teamChatText").focus();});
   $("announcementForm").addEventListener("submit",async e=>{e.preventDefault();const z=await supabase.from("store_announcements").insert({owner_id:teamOwnerId||session.user.id,author_id:session.user.id,title:$("announcementTitle").value.trim(),body:$("announcementBody").value.trim()});if(z.error){$("announcementMessage").textContent=z.error.message;return;}$("announcementForm").reset();$("announcementMessage").textContent="Announcement published.";await loadTeamData();});
   $("refreshAttendanceBtn").addEventListener("click",refreshTeam);
   $("clockInBtn").addEventListener("click",async()=>{const z=await supabase.from("staff_attendance").insert({owner_id:teamOwnerId||session.user.id,user_id:session.user.id});if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked in.";await loadTeamData();});
