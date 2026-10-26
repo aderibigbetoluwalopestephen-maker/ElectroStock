@@ -181,6 +181,7 @@
     if(!cs?.data && session?.user?.id && currentRole==="owner"){openOnboarding();}
   }
   async function saveProduct(data,id){
+    if(!canManageProducts())return {error:{message:"Sales reps cannot add or edit store products. Ask the owner or a manager."}};
     if(localMode){
       if(id){products=products.map(p=>p.id===id?{...p,...data,updated_at:new Date().toISOString()}:p);}
       else products.unshift({...data,id:crypto.randomUUID(),created_at:new Date().toISOString()});
@@ -190,6 +191,7 @@
     return result;
   }
   async function deleteProduct(id){
+    if(!canManageProducts()){toast("Sales reps cannot delete store products. Ask the owner or a manager.");return;}
     if(!confirm("Delete this product? Its stock movement history may also be removed."))return;
     if(localMode){products=products.filter(p=>p.id!==id);movements=movements.filter(m=>m.product_id!==id);saveLocal();}
     else {const {error}=await supabase.from("products").delete().eq("id",id);if(error){toast(error.message);return;}await loadCloud();}
@@ -209,7 +211,9 @@
   function renderProducts(){
     const query=($("searchInput").value||"").toLowerCase(),cat=$("categoryFilter").value,stock=$("stockFilter").value;
     const list=products.filter(p=>[p.name,p.brand,p.model,p.category].join(" ").toLowerCase().includes(query)&&(!cat||p.category===cat)&&(!stock||statusOf(p)===({in:"in",low:"low",out:"out"}[stock])));
-    $("productsTable").innerHTML=list.map(p=>productRow(p)).join("");$("emptyProducts").classList.toggle("hidden",list.length>0);
+    $("productsTable").innerHTML=list.map(p=>productRow(p,canManageProducts())).join("");$("emptyProducts").classList.toggle("hidden",list.length>0);
+    $("addProductBtn").classList.toggle("hidden",!canManageProducts());$("emptyAddBtn").classList.toggle("hidden",!canManageProducts());
+    $("importBtn").classList.toggle("hidden",!canManageProducts());$("addProductTop").classList.toggle("hidden",!canManageProducts());
     const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort(),current=$("categoryFilter").value;
     $("categoryFilter").innerHTML='<option value="">All categories</option>'+cats.map(c=>`<option ${c===current?"selected":""}>${esc(c)}</option>`).join("");
     $("productsTable").querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>openModal(b.dataset.edit)));
@@ -282,7 +286,40 @@
   $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
   $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message}).select("id");if(z.error){$("teamChatMessage").textContent=z.error.message;return;}if(z.data?.[0]?.id)seenChatMessageIds.add(z.data[0].id);$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
   $("refreshChatBtn").addEventListener("click",refreshTeam);
-  $("floatingChatBtn").addEventListener("click",async()=>{switchView("team");showTeamTab("chat");markChatRead();await loadTeamData();markChatRead();$("teamChatText").focus();});
+  // Let each user reposition the floating chat launcher; keep its location in this browser.
+  (function makeChatLauncherMovable(){
+    const button=$("floatingChatBtn");if(!button)return;
+    const key="electrostock_chat_launcher_position";
+    let startX=0,startY=0,startLeft=0,startTop=0,moved=false,dragging=false;
+    try{const saved=JSON.parse(localStorage.getItem(key)||"null");if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top)){
+      button.style.left=Math.max(0,Math.min(saved.left,window.innerWidth-button.offsetWidth))+"px";
+      button.style.top=Math.max(0,Math.min(saved.top,window.innerHeight-button.offsetHeight))+"px";
+      button.style.right="auto";button.style.bottom="auto";
+    }}catch{}
+    button.addEventListener("pointerdown",e=>{
+      if(e.button!==0&&e.pointerType==="mouse")return;
+      const rect=button.getBoundingClientRect();startX=e.clientX;startY=e.clientY;startLeft=rect.left;startTop=rect.top;moved=false;dragging=true;
+      button.setPointerCapture?.(e.pointerId);
+    });
+    button.addEventListener("pointermove",e=>{
+      if(!dragging)return;
+      const dx=e.clientX-startX,dy=e.clientY-startY;
+      if(!moved&&Math.abs(dx)+Math.abs(dy)<6)return;
+      moved=true;button.classList.add("is-dragging");
+      const left=Math.max(0,Math.min(startLeft+dx,window.innerWidth-button.offsetWidth));
+      const top=Math.max(0,Math.min(startTop+dy,window.innerHeight-button.offsetHeight));
+      button.style.left=left+"px";button.style.top=top+"px";button.style.right="auto";button.style.bottom="auto";
+    });
+    const endDrag=()=>{
+      if(!dragging)return;dragging=false;button.classList.remove("is-dragging");
+      if(moved){try{const rect=button.getBoundingClientRect();localStorage.setItem(key,JSON.stringify({left:rect.left,top:rect.top}));}catch{}}
+    };
+    button.addEventListener("pointerup",endDrag);button.addEventListener("pointercancel",endDrag);
+    button.addEventListener("click",async e=>{
+      if(moved){e.preventDefault();e.stopImmediatePropagation();moved=false;return;}
+      switchView("team");showTeamTab("chat");markChatRead();await loadTeamData();markChatRead();$("teamChatText").focus();
+    });
+  })();
   $("announcementForm").addEventListener("submit",async e=>{e.preventDefault();const z=await supabase.from("store_announcements").insert({owner_id:teamOwnerId||session.user.id,author_id:session.user.id,title:$("announcementTitle").value.trim(),body:$("announcementBody").value.trim()});if(z.error){$("announcementMessage").textContent=z.error.message;return;}$("announcementForm").reset();$("announcementMessage").textContent="Announcement published.";await loadTeamData();});
   $("refreshAttendanceBtn").addEventListener("click",refreshTeam);
   $("clockInBtn").addEventListener("click",async()=>{const z=await supabase.from("staff_attendance").insert({owner_id:teamOwnerId||session.user.id,user_id:session.user.id});if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked in.";await loadTeamData();});
@@ -418,6 +455,7 @@
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
   async function importInventory(file){
+    if(!canManageProducts())throw new Error("Sales reps cannot import or add products. Ask the owner or a manager.");
     if(!window.XLSX){throw new Error("Excel support could not load. Check your internet connection and refresh.");}
     const buffer=await file.arrayBuffer();
     const workbook=XLSX.read(buffer,{type:"array"});
@@ -570,6 +608,7 @@
   $("stockForm").addEventListener("submit",async e=>{
     e.preventDefault();const id=$("stockProduct").value,p=products.find(x=>x.id===id),type=$("movementType").value,qty=Number($("movementQty").value),customer=$("customerName").value.trim(),note=$("movementNote").value.trim();
     $("stockMessage").textContent="";
+    if(!canManageProducts()&&type!=="sale"){$("stockMessage").textContent="Sales reps cannot add or adjust stock. Ask the owner or a manager.";return;}
     if(!p){$("stockMessage").textContent="Choose a product first.";return;}
     if(!Number.isInteger(qty)||qty<1){$("stockMessage").textContent="Enter a quantity of at least 1.";return;}
     if(type==="sale"&&qty>Number(p.quantity)){$("stockMessage").textContent="Sale quantity cannot exceed available stock.";return;}
