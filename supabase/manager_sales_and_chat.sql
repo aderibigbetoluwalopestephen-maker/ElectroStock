@@ -60,12 +60,15 @@ begin
     raise exception 'Add at least one product to the cart.';
   end if;
 
-  if exists (select 1 from public.store_members m where m.user_id = v_user and m.active = true) then
+  if exists (select 1 from public.store_members m where m.user_id = v_user) then
     select m.owner_id, m.role into v_owner, v_role
     from public.store_members m
     where m.user_id = v_user and m.active = true
     order by m.created_at asc
     limit 1;
+    if v_owner is null then
+      raise exception 'Your staff access has been disabled. Contact the store owner.';
+    end if;
   else
     v_owner := v_user;
     v_role := 'owner';
@@ -163,7 +166,7 @@ begin
     'created_at', v_created_at,
     'total_amount', v_total,
     'gross_profit', v_profit,
-    'quantity', (select coalesce(sum((x->>'quantity')::integer), 0) from jsonb_array_elements(v_items) x),
+    'quantity', (select coalesce(sum((item->>'quantity')::integer), 0) from jsonb_array_elements(v_items) as e(item)),
     'items', v_items
   );
 end;
