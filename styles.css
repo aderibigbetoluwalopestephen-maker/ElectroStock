@@ -100,3 +100,6 @@
 
 /* Always-available team chat launcher */
 .floating-chat-btn{position:fixed;right:24px;bottom:24px;z-index:1200;display:flex;align-items:center;gap:9px;padding:14px 18px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:linear-gradient(135deg,#8b7cff,#6655df);color:#fff;font-weight:700;box-shadow:0 12px 34px rgba(0,0,0,.32);transition:transform .18s ease,box-shadow .18s ease}.floating-chat-btn:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(0,0,0,.4)}.floating-chat-btn span:first-child{font-size:19px;line-height:1}@media(max-width:600px){.floating-chat-btn{right:14px;bottom:14px;padding:13px 16px}.floating-chat-btn span:last-child{display:inline}}
+
+/* Team chat unread message notifications */
+.chat-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:#ff4d67;color:#fff;font-size:11px;font-weight:800;line-height:1;box-shadow:0 0 0 2px #6655df}.chat-unread-badge.hidden{display:none}.floating-chat-btn.has-unread{animation:chat-notice-pulse 1.8s ease-in-out infinite}@keyframes chat-notice-pulse{0%,100%{box-shadow:0 12px 34px rgba(0,0,0,.32)}50%{box-shadow:0 12px 34px rgba(255,77,103,.45)}}
