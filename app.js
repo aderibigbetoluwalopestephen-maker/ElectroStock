@@ -277,32 +277,46 @@
   }
   $("subscribeLogoBtn").addEventListener("click",()=>{
     const status=$("logoSubscriptionStatus");
-    const say=(message)=>{if(status)status.textContent=message;toast(message);};
-    say("Subscribe button clicked. Checking checkout settings…");
+    const say=(message)=>{
+      if(status)status.textContent=message;
+      try{toast(message);}catch(err){console.warn("Toast notification unavailable:",err);}
+    };
     try{
+      say("Subscribe clicked. Checking payment setup…");
       if(hasActiveLogoSubscription()){say("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
       if(localMode||!session?.user){say("Please sign in to a registered account before subscribing.");return;}
       if(logoSubscription.error){say("Could not check subscription status: "+logoSubscription.error);return;}
-      if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and plan code in config.js.");return;}
-      if(!window.PaystackPop){say("Paystack checkout library is not loaded. Refresh the page and check browser content blockers.");return;}
+      if(!config.paystackPublicKey||!config.paystackPlanCode||config.paystackPublicKey.includes("YOUR_")||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and plan code in config.js.");return;}
+      if(!window.PaystackPop||typeof window.PaystackPop.setup!=="function"){say("Paystack checkout did not load. Refresh the page. If this continues, check whether the Paystack script is blocked.");return;}
+      say("Opening Paystack checkout…");
       const handler=window.PaystackPop.setup({
-        key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,
+        key:config.paystackPublicKey,
+        email:session.user.email,
+        plan:config.paystackPlanCode,
         ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
         metadata:{owner_id:session.user.id,feature:"logo_customization"},
         callback:async(response)=>{
-          if(status)status.textContent="Payment received. Verifying with Paystack…";
+          say("Payment received. Verifying your subscription…");
           try{
             const result=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
             if(result.error)throw new Error(result.error.message||"Verification service unavailable.");
             if(!result.data?.active)throw new Error(result.data?.error||"Subscription was not activated.");
-            logoSubscription={active:true,expires_at:result.data.expires_at,error:null};updateLogoSubscriptionUI();applyCompanyBranding();say("Logo subscription activated.");
-          }catch(err){console.error(err);say("Verification failed. Reference: "+response.reference+". "+(err?.message||"Contact support with this reference."));}
+            logoSubscription={active:true,expires_at:result.data.expires_at,error:null};
+            updateLogoSubscriptionUI();applyCompanyBranding();
+            say("Logo subscription activated.");
+          }catch(err){
+            console.error("Logo subscription verification failed:",err);
+            say("Payment verification failed. Keep this reference for support: "+response.reference);
+          }
         },
-        onClose:()=>{if(status&&!hasActiveLogoSubscription())status.textContent="Checkout closed before payment was confirmed.";}
+        onClose:()=>{if(!hasActiveLogoSubscription())say("Checkout closed before payment was confirmed.");}
       });
+      if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack could not initialize checkout.");
       handler.openIframe();
-      if(status)status.textContent="Paystack checkout opened. Complete payment in the checkout window.";
-    }catch(err){console.error(err);say("Checkout could not open: "+(err?.message||"Unknown error"));}
+    }catch(err){
+      console.error("Paystack checkout error:",err);
+      say("Checkout could not open: "+(err?.message||"Unknown error"));
+    }
   });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
   $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";$("settingsMessage").textContent="An active ₦1,500/month subscription is required to upload a logo.";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
