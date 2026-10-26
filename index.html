@@ -38,7 +38,6 @@
       <button class="nav-item" data-view="pos"><span>▣</span> Point of Sale</button>
       <button class="nav-item" data-view="sales"><span>↗</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
       <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button>
-      <button class="nav-item" data-view="subscription"><span>✦</span> Subscription</button>
       <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
       <div class="sidebar-bottom">
         <div class="owner-card"><div class="avatar" id="ownerAvatar">O</div><div><strong id="ownerDisplayName">Store owner</strong><small id="ownerEmail">Private workspace</small></div></div>
@@ -130,6 +129,10 @@
         <div class="section-intro"><div><h1>Company settings</h1><p class="muted">Personalize ElectroStock for your business. Changes apply to your dashboard and receipts.</p></div></div>
         <section class="panel glass settings-panel">
           <div class="settings-preview"><div class="settings-logo-preview" id="settingsLogoPreview">E<span>+</span></div><div><h3 id="settingsPreviewName">ElectroStock</h3><p class="muted">Your business identity</p></div></div>
+          <section class="subscription-card" id="logoSubscriptionCard" aria-live="polite">
+            <div><p class="eyebrow">BRANDING SUBSCRIPTION</p><h3>Use your own business logo</h3><p class="muted">Display your logo across ElectroStock and on printed sales receipts.</p><p class="subscription-price">₦1,500 <span>/ month</span></p><p class="tiny muted" id="logoSubscriptionStatus">An active subscription is required to customize your logo.</p></div>
+            <button class="btn primary" type="button" id="subscribeLogoBtn">Subscribe for ₦1,500/month</button>
+          </section>
           <form id="settingsForm" class="form-grid">
             <label class="span-2">Company / store name *<input id="settingCompanyName" maxlength="100" required placeholder="e.g. Ade Mini Mart"></label>
             <label>Business phone<input id="settingPhone" maxlength="40" type="tel" placeholder="Phone number"></label>
@@ -144,17 +147,6 @@
 
         </section>
       </section>
-      <section id="subscriptionView" class="view hidden">
-        <div class="section-intro"><div><h1>Subscription</h1><p class="muted">Manage your ElectroStock branding plan and payment status.</p></div></div>
-        <section class="panel glass" style="max-width:900px">
-          <section class="subscription-card" id="logoSubscriptionCard" aria-live="polite">
-            <div><p class="eyebrow">BRANDING SUBSCRIPTION</p><h3>Use your own business logo</h3><p class="muted">Display your logo across ElectroStock and on printed sales receipts.</p><p class="subscription-price">₦1,500 <span>/ month</span></p><p class="tiny muted" id="logoSubscriptionStatus">An active subscription is required to customize your logo.</p></div>
-            <button class="btn primary" type="button" id="subscribeLogoBtn">Subscribe for ₦1,500/month</button>
-          </section>
-          <div class="panel-heading"><div><h3>Why subscribe?</h3><p class="muted">An active plan lets you upload your business logo and display it across your workspace and sales receipts.</p></div></div>
-        </section>
-      </section>
-
       <footer><span id="footerCompanyName">ElectroStock</span> <span>•</span> Inventory management <span class="footer-right">Made for your store</span></footer>
     </main>
   </div>
