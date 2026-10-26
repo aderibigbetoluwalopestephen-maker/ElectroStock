@@ -244,7 +244,7 @@
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"team_messages",filter:"owner_id=eq."+teamOwnerId},payload=>{
         const message=payload.new;if(!message?.id||message.sender_id===session?.user?.id||seenChatMessageIds.has(message.id))return;
         seenChatMessageIds.add(message.id);saveSeenChatIds();teamMessages.push(message);
-        const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
+        const chatOpen=!$("teamChatPanel").classList.contains("hidden");
         if(!chatOpen){chatUnreadCount++;updateChatBadge();}
         const sender=teamMembers.find(m=>m.user_id===message.sender_id)?.display_name||(message.sender_id===teamOwnerId?"Store owner":"Team member");
         toast("New message from "+sender+": "+String(message.message||"").slice(0,70));
@@ -284,8 +284,11 @@
     $("inviteStaffForm").classList.toggle("hidden",!canManageStaff());
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
   }
-  function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","chat","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",chat:"Chat",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));}
-  document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>showTeamTab(b.dataset.teamTab)));
+  function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));if(tab==="chat")openTeamChat();else closeTeamChat();}
+  async function openTeamChat(){const panel=$("teamChatPanel");panel.classList.remove("hidden");panel.classList.add("is-open");markChatRead();if(!localMode)await loadTeamData();markChatRead();setTimeout(()=>$("teamChatText").focus(),60);}
+  function closeTeamChat(){const panel=$("teamChatPanel");panel.classList.add("hidden");panel.classList.remove("is-open");}
+  document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.teamTab==="chat"){openTeamChat();return;}showTeamTab(b.dataset.teamTab);}));
+  $("closeChatBtn").addEventListener("click",closeTeamChat);
   async function refreshTeam(){if(localMode){toast("Connect Supabase to use team features.");return;}await loadTeamData();}
   $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
   $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message}).select("id");if(z.error){$("teamChatMessage").textContent=z.error.message;return;}if(z.data?.[0]?.id)seenChatMessageIds.add(z.data[0].id);$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
@@ -321,7 +324,7 @@
     button.addEventListener("pointerup",endDrag);button.addEventListener("pointercancel",endDrag);
     button.addEventListener("click",async e=>{
       if(moved){e.preventDefault();e.stopImmediatePropagation();moved=false;return;}
-      switchView("team");showTeamTab("chat");markChatRead();await loadTeamData();markChatRead();$("teamChatText").focus();
+      if($("teamChatPanel").classList.contains("hidden")){openTeamChat();}else{closeTeamChat();}
     });
   })();
   $("announcementForm").addEventListener("submit",async e=>{e.preventDefault();const z=await supabase.from("store_announcements").insert({owner_id:teamOwnerId||session.user.id,author_id:session.user.id,title:$("announcementTitle").value.trim(),body:$("announcementBody").value.trim()});if(z.error){$("announcementMessage").textContent=z.error.message;return;}$("announcementForm").reset();$("announcementMessage").textContent="Announcement published.";await loadTeamData();});
