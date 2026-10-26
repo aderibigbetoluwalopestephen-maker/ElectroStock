@@ -276,23 +276,33 @@
     if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
   $("subscribeLogoBtn").addEventListener("click",()=>{
-    if(hasActiveLogoSubscription()){toast("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
-    if(localMode||!session?.user){toast("Sign in with a registered ElectroStock account to subscribe.");return;}
-    if(logoSubscription.error){toast("Subscription status could not be verified. Refresh and try again.");return;}
-    if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){toast("Paystack subscription is not configured. Check the public key and monthly plan code in config.js.");return;}
-    if(!window.PaystackPop){toast("Paystack checkout could not load. Refresh and try again.");return;}
-    const handler=window.PaystackPop.setup({
-      key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,
-      ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
-      metadata:{owner_id:session.user.id,feature:"logo_customization"},
-      callback:async(response)=>{
-        const {data,error}=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-        if(error||!data?.active){toast("Payment was received but subscription verification failed. Reference: "+response.reference);return;}
-        logoSubscription={active:true,expires_at:data.expires_at,error:null};updateLogoSubscriptionUI();applyCompanyBranding();toast("Logo subscription activated.");
-      },
-      onClose:()=>toast("Checkout closed. No changes were made.")
-    });
-    handler.openIframe();
+    const status=$("logoSubscriptionStatus");
+    const say=(message)=>{if(status)status.textContent=message;toast(message);};
+    say("Subscribe button clicked. Checking checkout settings…");
+    try{
+      if(hasActiveLogoSubscription()){say("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
+      if(localMode||!session?.user){say("Please sign in to a registered account before subscribing.");return;}
+      if(logoSubscription.error){say("Could not check subscription status: "+logoSubscription.error);return;}
+      if(!config.paystackPublicKey||config.paystackPublicKey.includes("YOUR_")||!config.paystackPlanCode||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and plan code in config.js.");return;}
+      if(!window.PaystackPop){say("Paystack checkout library is not loaded. Refresh the page and check browser content blockers.");return;}
+      const handler=window.PaystackPop.setup({
+        key:config.paystackPublicKey,email:session.user.email,plan:config.paystackPlanCode,
+        ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
+        metadata:{owner_id:session.user.id,feature:"logo_customization"},
+        callback:async(response)=>{
+          if(status)status.textContent="Payment received. Verifying with Paystack…";
+          try{
+            const result=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
+            if(result.error)throw new Error(result.error.message||"Verification service unavailable.");
+            if(!result.data?.active)throw new Error(result.data?.error||"Subscription was not activated.");
+            logoSubscription={active:true,expires_at:result.data.expires_at,error:null};updateLogoSubscriptionUI();applyCompanyBranding();say("Logo subscription activated.");
+          }catch(err){console.error(err);say("Verification failed. Reference: "+response.reference+". "+(err?.message||"Contact support with this reference."));}
+        },
+        onClose:()=>{if(status&&!hasActiveLogoSubscription())status.textContent="Checkout closed before payment was confirmed.";}
+      });
+      handler.openIframe();
+      if(status)status.textContent="Paystack checkout opened. Complete payment in the checkout window.";
+    }catch(err){console.error(err);say("Checkout could not open: "+(err?.message||"Unknown error"));}
   });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
   $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";$("settingsMessage").textContent="An active ₦1,500/month subscription is required to upload a logo.";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
