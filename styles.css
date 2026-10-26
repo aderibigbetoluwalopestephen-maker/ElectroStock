@@ -103,3 +103,4 @@
 
 /* Team chat unread message notifications */
 .chat-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:#ff4d67;color:#fff;font-size:11px;font-weight:800;line-height:1;box-shadow:0 0 0 2px #6655df}.chat-unread-badge.hidden{display:none}.floating-chat-btn.has-unread{animation:chat-notice-pulse 1.8s ease-in-out infinite}@keyframes chat-notice-pulse{0%,100%{box-shadow:0 12px 34px rgba(0,0,0,.32)}50%{box-shadow:0 12px 34px rgba(255,77,103,.45)}}
+\n/* Movable floating chat launcher */\n.floating-chat-btn{touch-action:none;user-select:none;cursor:grab}.floating-chat-btn.is-dragging{cursor:grabbing;transition:none;transform:none;z-index:1300}\n
