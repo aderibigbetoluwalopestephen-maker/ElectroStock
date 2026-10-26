@@ -8,7 +8,7 @@ create policy "Store members can view products"
 on public.products
 for select
 to authenticated
-using (public.store_member_role(owner_id) in ('owner', 'manager'));
+using (public.store_member_role(owner_id) in ('owner', 'manager', 'sales_rep'));
 
 -- Managers need to read stock movement rows to see the product history screens
 -- and product names joined to movements. Owners keep their existing access.
