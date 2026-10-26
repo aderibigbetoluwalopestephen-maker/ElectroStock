@@ -48,6 +48,7 @@
   function openPasswordReset(isInvite=false){$("resetPasswordMessage").textContent="";$("resetPasswordTitle").textContent=isInvite?"Set your ElectroStock password":"Choose a new password";$("saveNewPasswordBtn").textContent=isInvite?"Save password":"Update password";$("resetPasswordModal").classList.remove("hidden");document.body.style.overflow="hidden";}
   async function init(){
     $("todayLabel").textContent=new Date().toLocaleDateString("en-NG",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+    initializeMonthFilters();
     const callbackParams=new URLSearchParams(window.location.search);
     const callbackStatus=callbackParams.get("auth");
     const callbackError=callbackParams.get("error_description")||callbackParams.get("error");
@@ -222,7 +223,10 @@
   function renderRecent(){const list=[...products].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5);$("recentProducts").innerHTML=list.length?`<table><thead><tr><th>PRODUCT</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th></tr></thead><tbody>${list.map(p=>`<tr><td>${productCell(p)}</td><td>${money(p.selling_price)}</td><td>${Number(p.quantity)||0}</td><td>${statusBadge(p)}</td></tr>`).join("")}</tbody></table>`:'<div class="empty-state"><div class="empty-icon">▤</div><h3>Your catalogue starts here</h3><p>Add your products to see them listed here.</p><button class="btn primary" id="recentAddBtn">＋ Add product</button></div>';const b=$("recentAddBtn");if(b&&!canManageProducts())b.classList.add("hidden");if(b)b.addEventListener("click",()=>openModal());}
   function renderAlerts(){const list=products.filter(p=>statusOf(p)!=="in").sort((a,b)=>Number(a.quantity)-Number(b.quantity)).slice(0,6);$("alertsList").innerHTML=list.length?list.map(p=>`<div class="alert-item"><div class="product-thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="">`:iconFor(p.category)}</div><div class="alert-info"><strong>${esc(p.name)}</strong><small>${esc(p.category||"Uncategorized")} · Reorder at ${Number(p.low_stock_threshold??3)}</small></div><span class="qty-badge ${statusOf(p)}">${statusOf(p)==="out"?"Out of stock":`${p.quantity} left`}</span></div>`).join(""):'<div class="empty-state"><div class="empty-icon">✓</div><h3>All clear</h3><p>No low-stock or out-of-stock alerts.</p></div>';}
   function renderProductOptions(){const current=$("stockProduct").value;$("stockProduct").innerHTML='<option value="">Select a product</option>'+products.map(p=>`<option value="${p.id}" ${p.id===current?"selected":""}>${esc(p.name)} (${p.quantity} available)</option>`).join("");}
-  function renderMovements(){const rows=movements.slice(0,100);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
+  function currentMonthKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
+  function monthMatches(value,month){if(!month)return true;const d=new Date(value||0);return !Number.isNaN(d.getTime())&&d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")===month;}
+  function initializeMonthFilters(){const month=currentMonthKey();["salesMonthFilter","movementMonthFilter","attendanceMonthFilter"].forEach(id=>{const el=$(id);if(el&&!el.value)el.value=month;});}
+  function renderMovements(){const month=$("movementMonthFilter")?.value||currentMonthKey();const rows=movements.filter(m=>monthMatches(m.created_at,month)).slice(0,300);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
 
   let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
   let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
@@ -273,7 +277,7 @@
     $("teamStaffTable").querySelectorAll("[data-member-toggle]").forEach(b=>b.addEventListener("click",async()=>{const m=teamMembers.find(x=>x.id===b.dataset.memberToggle);if(!m)return;const z=await supabase.from("store_members").update({active:!m.active,updated_at:new Date().toISOString()}).eq("id",m.id);if(z.error){$("teamStaffMessage").textContent=z.error.message;return;}await loadTeamData();}));
     $("teamChatMessages").innerHTML=teamMessages.length?teamMessages.map(m=>'<article class="team-message '+(m.sender_id===session?.user?.id?"mine":"")+'"><p>'+esc(m.message)+'</p><small>'+esc(teamMembers.find(x=>x.user_id===m.sender_id)?.display_name||(m.sender_id===teamOwnerId?"Store owner":"Team member"))+" · "+teamDate(m.created_at)+"</small></article>").join(""):'<p class="muted">No messages yet.</p>';
     $("teamAnnouncementsList").innerHTML=teamAnnouncements.length?teamAnnouncements.map(n=>'<article class="team-announcement"><h4>'+esc(n.title)+'</h4><small>'+teamDate(n.created_at)+'</small><p>'+esc(n.body)+"</p></article>").join(""):'<p class="muted">No announcements yet.</p>';
-    $("attendanceTable").innerHTML=attendanceRows.length?attendanceRows.map(r=>{const m=teamMembers.find(x=>x.user_id===r.user_id);const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+esc(m?.display_name||(r.user_id===teamOwnerId?"Store owner":"Staff member"))+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records yet.</td></tr>';
+    const attendanceMonth=$("attendanceMonthFilter")?.value||currentMonthKey();const periodAttendance=attendanceRows.filter(r=>monthMatches(r.clock_in,attendanceMonth));$("attendanceTable").innerHTML=periodAttendance.length?periodAttendance.map(r=>{const m=teamMembers.find(x=>x.user_id===r.user_id);const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+esc(m?.display_name||(r.user_id===teamOwnerId?"Store owner":"Staff member"))+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records yet.</td></tr>';
     const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);
     $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";
     $("clockInBtn").disabled=!!open;$("clockOutBtn").disabled=!open;
@@ -334,6 +338,9 @@
   $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
   $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.textContent="↑ Import Excel";e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
+  $("salesMonthFilter").addEventListener("change",renderSales);
+  $("movementMonthFilter").addEventListener("change",renderMovements);
+  $("attendanceMonthFilter").addEventListener("change",renderTeam);
   function openSaleForm(){switchView("pos");$("posSearch").focus();$("posMessage").textContent="Add products to the cart to start a sale.";}
   $("recordSaleBtn").addEventListener("click",openSaleForm);$("emptyRecordSaleBtn").addEventListener("click",openSaleForm);
   $("mobileMenuBtn").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded",String(open));$("mobileMenuBtn").textContent=open?"×":"☰";});
@@ -514,8 +521,10 @@
   function renderSales(){
     const today=new Date();const isToday=s=>{const d=new Date(s.created_at);return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();};
     const todays=sales.filter(isToday);
+    const selectedMonth=$("salesMonthFilter")?.value||currentMonthKey();
+    const monthSales=sales.filter(s=>monthMatches(s.created_at,selectedMonth));
     const groups=new Map();
-    sales.forEach(s=>{
+    monthSales.forEach(s=>{
       const key=s.transaction_ref||s.receipt_number||s.id;
       if(!groups.has(key))groups.set(key,{...s,items:[],total_amount:0,gross_profit:0,quantity:0});
       const group=groups.get(key);group.items.push(s);group.total_amount+=Number(s.total_amount||0);group.gross_profit+=Number(s.gross_profit||0);group.quantity+=Number(s.quantity||0);
