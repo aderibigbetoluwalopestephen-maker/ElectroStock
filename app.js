@@ -295,19 +295,21 @@
         plan:config.paystackPlanCode,
         ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
         metadata:{owner_id:session.user.id,feature:"logo_customization"},
-        callback:async(response)=>{
+        callback:function(response){
           say("Payment received. Verifying your subscription…");
-          try{
-            const result=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-            if(result.error)throw new Error(result.error.message||"Verification service unavailable.");
-            if(!result.data?.active)throw new Error(result.data?.error||"Subscription was not activated.");
-            logoSubscription={active:true,expires_at:result.data.expires_at,error:null};
-            updateLogoSubscriptionUI();applyCompanyBranding();
-            say("Logo subscription activated.");
-          }catch(err){
-            console.error("Logo subscription verification failed:",err);
-            say("Payment verification failed. Keep this reference for support: "+response.reference);
-          }
+          (async function(){
+            try{
+              const result=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
+              if(result.error)throw new Error(result.error.message||"Verification service unavailable.");
+              if(!result.data?.active)throw new Error(result.data?.error||"Subscription was not activated.");
+              logoSubscription={active:true,expires_at:result.data.expires_at,error:null};
+              updateLogoSubscriptionUI();applyCompanyBranding();
+              say("Logo subscription activated.");
+            }catch(err){
+              console.error("Logo subscription verification failed:",err);
+              say("Payment verification failed. Keep this reference for support: "+response.reference);
+            }
+          })();
         },
         onClose:()=>{if(!hasActiveLogoSubscription())say("Checkout closed before payment was confirmed.");}
       });
