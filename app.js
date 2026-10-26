@@ -156,7 +156,7 @@
       btn.disabled=false;btn.textContent="Save business and continue";
     }
   });
-  $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();updateChatBadge();showAuth();setAuthMode("login");});
+  $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();chatSeenInitialized=false;updateChatBadge();showAuth();setAuthMode("login");});
   async function loadCloud(){
     if(localMode||!session?.user?.id)return;
     teamOwnerId=session.user.id;currentRole="owner";
@@ -221,10 +221,10 @@
   function renderMovements(){const rows=movements.slice(0,100);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
 
   let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
-  let teamMessageChannel=null,chatUnreadCount=0;
+  let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
   const seenChatMessageIds=new Set();
   const chatStorageKey=()=>`electrostock_chat_seen_${session?.user?.id||"guest"}`;
-  function loadSeenChatIds(){try{JSON.parse(sessionStorage.getItem(chatStorageKey())||"[]").forEach(id=>seenChatMessageIds.add(id));}catch{}}
+  function loadSeenChatIds(){if(chatSeenInitialized)return;try{const raw=sessionStorage.getItem(chatStorageKey());if(raw)JSON.parse(raw).forEach(id=>seenChatMessageIds.add(id));else teamMessages.forEach(m=>seenChatMessageIds.add(m.id));}catch{}chatSeenInitialized=true;}
   function saveSeenChatIds(){try{sessionStorage.setItem(chatStorageKey(),JSON.stringify([...seenChatMessageIds].slice(-500)));}catch{}}
   function updateChatBadge(){const badge=$("chatUnreadBadge"),button=$("floatingChatBtn");if(!badge||!button)return;badge.textContent=chatUnreadCount>99?"99+":String(chatUnreadCount);badge.classList.toggle("hidden",chatUnreadCount===0);button.classList.toggle("has-unread",chatUnreadCount>0);button.setAttribute("aria-label",chatUnreadCount?`Open internal team chat, ${chatUnreadCount} unread messages`:"Open internal team chat");}
   function markChatRead(){chatUnreadCount=0;teamMessages.forEach(m=>seenChatMessageIds.add(m.id));saveSeenChatIds();updateChatBadge();}
@@ -261,7 +261,7 @@
     teamMembers=r[0].data||[];teamMessages=r[1].data||[];teamAnnouncements=r[2].data||[];attendanceRows=r[3].data||[];
     loadSeenChatIds();
     const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
-    teamMessages.forEach(m=>{if(m.sender_id===session?.user?.id){seenChatMessageIds.add(m.id);return;}if(!seenChatMessageIds.has(m.id)){if(chatOpen)seenChatMessageIds.add(m.id);else chatUnreadCount++;}});
+    teamMessages.forEach(m=>{if(!seenChatMessageIds.has(m.id)&&m.sender_id!==session?.user?.id&&!chatOpen)chatUnreadCount++;seenChatMessageIds.add(m.id);});
     saveSeenChatIds();updateChatBadge();startTeamMessageNotifications();renderTeam();
   }
   function renderTeam(){
