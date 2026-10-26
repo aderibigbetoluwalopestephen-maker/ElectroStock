@@ -171,6 +171,7 @@
     logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
     renderAll();applyCompanyBranding();populateSettingsForm();
+    await loadTeamData();
     if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
     if(!cs?.data && session?.user?.id){openOnboarding();}
   }
