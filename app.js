@@ -213,7 +213,48 @@
   function renderAlerts(){const list=products.filter(p=>statusOf(p)!=="in").sort((a,b)=>Number(a.quantity)-Number(b.quantity)).slice(0,6);$("alertsList").innerHTML=list.length?list.map(p=>`<div class="alert-item"><div class="product-thumb">${p.image_url?`<img src="${esc(p.image_url)}" alt="">`:iconFor(p.category)}</div><div class="alert-info"><strong>${esc(p.name)}</strong><small>${esc(p.category||"Uncategorized")} · Reorder at ${Number(p.low_stock_threshold??3)}</small></div><span class="qty-badge ${statusOf(p)}">${statusOf(p)==="out"?"Out of stock":`${p.quantity} left`}</span></div>`).join(""):'<div class="empty-state"><div class="empty-icon">✓</div><h3>All clear</h3><p>No low-stock or out-of-stock alerts.</p></div>';}
   function renderProductOptions(){const current=$("stockProduct").value;$("stockProduct").innerHTML='<option value="">Select a product</option>'+products.map(p=>`<option value="${p.id}" ${p.id===current?"selected":""}>${esc(p.name)} (${p.quantity} available)</option>`).join("");}
   function renderMovements(){const rows=movements.slice(0,100);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();}
+
+  let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
+  const canManageStaff=()=>currentRole==="owner";
+  const canManageProducts=()=>["owner","manager"].includes(currentRole);
+  const teamDate=v=>v?new Date(v).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"}):"—";
+  async function loadTeamData(){
+    if(localMode||!session?.user?.id)return;
+    teamOwnerId=session.user.id;currentRole="owner";
+    const own=await supabase.from("store_members").select("*").eq("user_id",session.user.id).maybeSingle();
+    if(own.data){teamOwnerId=own.data.owner_id;currentRole=own.data.role||"sales_rep";}
+    const r=await Promise.all([
+      supabase.from("store_members").select("*").eq("owner_id",teamOwnerId).order("created_at",{ascending:false}),
+      supabase.from("team_messages").select("*").eq("owner_id",teamOwnerId).order("created_at",{ascending:true}).limit(200),
+      supabase.from("store_announcements").select("*").eq("owner_id",teamOwnerId).order("created_at",{ascending:false}).limit(100),
+      supabase.from("staff_attendance").select("*").eq("owner_id",teamOwnerId).order("clock_in",{ascending:false}).limit(300)
+    ]);
+    teamMembers=r[0].data||[];teamMessages=r[1].data||[];teamAnnouncements=r[2].data||[];attendanceRows=r[3].data||[];renderTeam();
+  }
+  function renderTeam(){
+    $("teamStaffTable").innerHTML=teamMembers.length?teamMembers.map(m=>"<tr><td>"+esc(m.display_name)+"</td><td>"+esc(m.email)+"</td><td>"+(m.role==="manager"?"Manager":"Sales Rep")+"</td><td>"+(m.active?"Active":"Disabled")+"</td><td>"+(canManageStaff()?'<button class="mini-btn" data-member-toggle="'+m.id+'">'+(m.active?"Disable":"Enable")+"</button>":"—")+"</td></tr>").join(""):'<tr><td colspan="5">No staff members yet.</td></tr>';
+    $("teamStaffTable").querySelectorAll("[data-member-toggle]").forEach(b=>b.addEventListener("click",async()=>{const m=teamMembers.find(x=>x.id===b.dataset.memberToggle);if(!m)return;const z=await supabase.from("store_members").update({active:!m.active,updated_at:new Date().toISOString()}).eq("id",m.id);if(z.error){$("teamStaffMessage").textContent=z.error.message;return;}await loadTeamData();}));
+    $("teamChatMessages").innerHTML=teamMessages.length?teamMessages.map(m=>'<article class="team-message '+(m.sender_id===session?.user?.id?"mine":"")+'"><p>'+esc(m.message)+'</p><small>'+esc(teamMembers.find(x=>x.user_id===m.sender_id)?.display_name||(m.sender_id===teamOwnerId?"Store owner":"Team member"))+" · "+teamDate(m.created_at)+"</small></article>").join(""):'<p class="muted">No messages yet.</p>';
+    $("teamAnnouncementsList").innerHTML=teamAnnouncements.length?teamAnnouncements.map(n=>'<article class="team-announcement"><h4>'+esc(n.title)+'</h4><small>'+teamDate(n.created_at)+'</small><p>'+esc(n.body)+"</p></article>").join(""):'<p class="muted">No announcements yet.</p>';
+    $("attendanceTable").innerHTML=attendanceRows.length?attendanceRows.map(r=>{const m=teamMembers.find(x=>x.user_id===r.user_id);const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+esc(m?.display_name||(r.user_id===teamOwnerId?"Store owner":"Staff member"))+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records yet.</td></tr>';
+    const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);
+    $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";
+    $("clockInBtn").disabled=!!open;$("clockOutBtn").disabled=!open;
+    $("inviteStaffForm").classList.toggle("hidden",!canManageStaff());
+    $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
+  }
+  function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","chat","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",chat:"Chat",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));}
+  document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>showTeamTab(b.dataset.teamTab)));
+  async function refreshTeam(){if(localMode){toast("Connect Supabase to use team features.");return;}await loadTeamData();}
+  $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error)throw z.error;if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){m.textContent=err?.message||"Invite function not deployed yet.";}finally{b.disabled=false;b.textContent="Invite staff";}});
+  $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message});if(z.error){$("teamChatMessage").textContent=z.error.message;return;}$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
+  $("refreshChatBtn").addEventListener("click",refreshTeam);
+  $("announcementForm").addEventListener("submit",async e=>{e.preventDefault();const z=await supabase.from("store_announcements").insert({owner_id:teamOwnerId||session.user.id,author_id:session.user.id,title:$("announcementTitle").value.trim(),body:$("announcementBody").value.trim()});if(z.error){$("announcementMessage").textContent=z.error.message;return;}$("announcementForm").reset();$("announcementMessage").textContent="Announcement published.";await loadTeamData();});
+  $("refreshAttendanceBtn").addEventListener("click",refreshTeam);
+  $("clockInBtn").addEventListener("click",async()=>{const z=await supabase.from("staff_attendance").insert({owner_id:teamOwnerId||session.user.id,user_id:session.user.id});if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked in.";await loadTeamData();});
+  $("clockOutBtn").addEventListener("click",async()=>{const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);if(!open)return;const z=await supabase.from("staff_attendance").update({clock_out:new Date().toISOString()}).eq("id",open.id);if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked out.";await loadTeamData();});
+
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",team:"Staff & Team",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
@@ -322,7 +363,7 @@
   });
   $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
   $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";$("settingsMessage").textContent="An active ₦1,500/month subscription is required to upload a logo.";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
-  $("settingsForm").addEventListener("submit",async e=>{
+  $("settingsForm").addEventListener("submit",async e=>{if(currentRole!=="owner"){e.preventDefault();toast("Only the store owner can change company settings.");return;}
     e.preventDefault();const btn=$("saveSettingsBtn"),message=$("settingsMessage");message.textContent="";
     const company_name=$("settingCompanyName").value.trim();if(!company_name){message.textContent="Company name is required.";return;}
     const requestedLogo=$("settingLogoFile").files[0];
@@ -470,7 +511,7 @@
     finally{button.textContent="Complete sale";renderPos();}
   });
   $("refreshBtn").addEventListener("click",async()=>{if(localMode)readLocal();else await loadCloud();renderAll();toast("Inventory refreshed.");});
-  function openModal(id=null){
+  function openModal(id=null){if(!canManageProducts()){toast("Only the owner or a manager can edit products.");return;}
     $("productForm").reset();$("productId").value="";$("productThreshold").value=3;$("productQty").value=0;$("productMessage").textContent="";$("modalTitle").textContent=id?"Edit product":"Add product";$("saveProductBtn").textContent=id?"Save changes":"Save product";
     if(id){const p=products.find(x=>x.id===id);if(!p)return;$("productId").value=p.id;$("productName").value=p.name||"";$("productBrand").value=p.brand||"";$("productModel").value=p.model||"";$("productCategory").value=p.category||"";$("productQty").value=p.quantity??0;$("productBuy").value=p.purchase_price??0;$("productSell").value=p.selling_price??0;$("productThreshold").value=p.low_stock_threshold??3;$("productImage").value=p.image_url||"";$("productDescription").value=p.description||"";}
     $("productModal").classList.remove("hidden");document.body.style.overflow="hidden";
