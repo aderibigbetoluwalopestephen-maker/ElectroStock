@@ -109,3 +109,9 @@
 .period-label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted,#9aa8b8);font-weight:600}
 .period-label input[type="month"]{min-height:40px;padding:8px 10px;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:10px;background:rgba(255,255,255,.04);color:inherit;font:inherit}
 @media(max-width:680px){.period-filters{width:100%;align-items:stretch}.period-label{flex:1}.period-label input[type="month"]{width:100%;box-sizing:border-box}.sales-search{min-width:0;width:100%}}
+
+.monthly-stock-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:4px 0 16px}
+.monthly-stock-summary article{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--line,rgba(255,255,255,.1));border-radius:12px;background:rgba(255,255,255,.025)}
+.monthly-stock-summary span{font-size:12px;color:var(--muted,#9aa8b8)}
+.monthly-stock-summary strong{font-size:22px;font-weight:700}
+@media(max-width:560px){.monthly-stock-summary{grid-template-columns:1fr}.monthly-stock-summary article{padding:11px 14px}}
