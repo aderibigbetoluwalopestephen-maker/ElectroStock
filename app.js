@@ -275,6 +275,7 @@
     }
     if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
+  $("settingsSubscribeLogoBtn")?.addEventListener("click",()=>{ $("subscribeLogoBtn")?.click(); });
   $("subscribeLogoBtn").addEventListener("click",()=>{
     const status=$("logoSubscriptionStatus");
     const say=(message)=>{if(status)status.textContent=message;toast(message);};
