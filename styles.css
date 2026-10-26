@@ -115,3 +115,15 @@
 .monthly-stock-summary span{font-size:12px;color:var(--muted,#9aa8b8)}
 .monthly-stock-summary strong{font-size:22px;font-weight:700}
 @media(max-width:560px){.monthly-stock-summary{grid-template-columns:1fr}.monthly-stock-summary article{padding:11px 14px}}
+
+
+/* Floating team chat popup, independent of page navigation */
+.floating-chat-window{position:fixed;right:24px;bottom:94px;z-index:1190;width:min(390px,calc(100vw - 28px));height:min(560px,calc(100vh - 130px));min-height:320px;display:flex;flex-direction:column;overflow:hidden;padding:0!important;margin:0;border:1px solid rgba(151,165,190,.28);border-radius:18px;background:#111b2b;box-shadow:0 24px 80px rgba(0,0,0,.48);opacity:0;transform:translateY(10px) scale(.985);pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+.floating-chat-window.hidden{display:none!important}
+.floating-chat-window.is-open{display:flex;opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.floating-chat-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;background:linear-gradient(135deg,#6d5ce8,#5141bb);color:#fff;flex-shrink:0}
+.floating-chat-heading{display:flex;align-items:center;gap:10px;min-width:0}.floating-chat-heading>div{display:grid;gap:3px}.floating-chat-heading strong{font-size:14px}.floating-chat-heading small{font-size:11px;color:#e1ddff}.floating-chat-avatar{display:grid;place-items:center;width:37px;height:37px;border-radius:50%;background:#ffffff25;font-size:18px}
+.floating-chat-header-actions{display:flex;gap:6px}.chat-window-action{width:31px;height:31px;border:0;border-radius:8px;background:#ffffff20;color:#fff;font-size:21px;cursor:pointer}.chat-window-action:hover{background:#ffffff35}
+.floating-chat-window .team-chat-messages{flex:1;min-height:0;max-height:none;overflow-y:auto;padding:14px;background:#0e1726;gap:11px}.floating-chat-window .team-message{max-width:88%;padding:10px 12px;border-radius:14px;background:#1b2a40;border-color:#2b3b53}.floating-chat-window .team-message.mine{background:#4e42a5;border-color:#7669ef}.floating-chat-window .team-message p{font-size:13px;line-height:1.5}.floating-chat-window .team-message small{font-size:10px;color:#aebbd0}.floating-chat-window .team-chat-form{grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;padding:12px;border-top:1px solid #26354a;background:#111b2b;flex-shrink:0}.floating-chat-window .team-chat-form textarea{min-height:42px;max-height:110px;resize:vertical;font-size:13px}.floating-chat-window .team-chat-form .btn{padding:11px 13px}.floating-chat-window #teamChatMessage{margin:0;padding:0 12px 8px;font-size:11px;background:#111b2b}
+@media(max-width:600px){.floating-chat-window{right:10px;bottom:82px;width:calc(100vw - 20px);height:min(68vh,560px);min-height:300px;border-radius:16px}.floating-chat-header{padding:12px}.floating-chat-window .team-chat-form{padding:9px}.floating-chat-window .team-chat-form .btn{padding:10px}}
+@media(prefers-reduced-motion:reduce){.floating-chat-window{transition:none}}
