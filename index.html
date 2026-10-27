@@ -7,6 +7,7 @@
   <title>ElectroStock  Inventory Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -31,17 +32,17 @@
 
   <div id="app" class="app-shell hidden">
     <aside class="sidebar" id="sidebar">
-      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button><a class="brand" href="#"><span class="brand-mark small logo-slot" id="sidebarBrandLogo">E<span>+</span></span><span id="sidebarCompanyName">ElectroStock<small>INVENTORY DESK</small></span></a>
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Open navigation" aria-expanded="false"><i class="fa-solid fa-bars" aria-hidden="true"></i></button><a class="brand" href="#"><span class="brand-mark small logo-slot" id="sidebarBrandLogo">E<span>+</span></span><span id="sidebarCompanyName">ElectroStock<small>INVENTORY DESK</small></span></a>
       <div class="side-label">WORKSPACE</div>
-      <button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button>
-      <button class="nav-item" data-view="products"><span>▤</span> Products <span class="nav-count" id="productNavCount">0</span></button>
-      <button class="nav-item" data-view="pos"><span>▣</span> Point of Sale</button>
-      <button class="nav-item" data-view="sales"><span>↗</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
-      <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button><button class="nav-item" data-view="attendance"><span>◷</span> Attendance</button><button class="nav-item" data-view="team"><span>♧</span> Staff & Team</button>
-      <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
+      <button class="nav-item active" data-view="dashboard"><span><i class="fa-solid fa-gauge-high" aria-hidden="true"></i></span> Dashboard</button>
+      <button class="nav-item" data-view="products"><span><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span> Products <span class="nav-count" id="productNavCount">0</span></button>
+      <button class="nav-item" data-view="pos"><span><i class="fa-solid fa-cash-register" aria-hidden="true"></i></span> Point of Sale</button>
+      <button class="nav-item" data-view="sales"><span><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
+      <button class="nav-item" data-view="stock"><span><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i></span> Stock movement</button><button class="nav-item" data-view="attendance"><span><i class="fa-regular fa-clock" aria-hidden="true"></i></span> Attendance</button><button class="nav-item" data-view="team"><span><i class="fa-solid fa-users" aria-hidden="true"></i></span> Staff & Team</button>
+      <button class="nav-item" data-view="settings"><span><i class="fa-solid fa-gear" aria-hidden="true"></i></span> Company settings</button>
       <div class="sidebar-bottom">
         <div class="owner-card"><div class="avatar" id="ownerAvatar">O</div><div><strong id="ownerDisplayName">Store owner</strong><small id="ownerEmail">Private workspace</small></div></div>
-        <button id="logoutBtn" class="nav-item logout"><span>↪</span> Sign out</button>
+        <button id="logoutBtn" class="nav-item logout"><span><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i></span> Sign out</button>
       </div>
     </aside>
 
@@ -49,15 +50,15 @@
       <header class="topbar">
         <div class="mobile-brand"><span class="brand-mark small logo-slot" id="mobileBrandLogo">E<span>+</span></span><strong id="mobileCompanyName">ElectroStock</strong></div>
         <div class="topbar-title"><p class="eyebrow">YOUR STORE AT A GLANCE</p><h2 id="pageTitle">Dashboard</h2></div>
-        <div class="top-actions"><div class="date-chip" id="todayLabel"></div><div class="notification-wrap"><button class="icon-btn notification-bell" id="enableNotificationsBtn" title="Notifications" aria-label="Open notifications" aria-expanded="false">🔔<span id="notificationBadge" class="notification-badge hidden">0</span></button><section id="notificationPanel" class="notification-panel hidden" aria-label="Notifications"><div class="notification-panel-head"><strong>Notifications</strong><button type="button" id="clearNotificationsBtn" class="text-btn">Clear all</button></div><div id="notificationList" class="notification-list"><p class="notification-empty">You’re all caught up.</p></div><button type="button" id="allowBrowserNotificationsBtn" class="notification-enable">Enable desktop notifications</button></section></div><button class="icon-btn" id="refreshBtn" title="Refresh data">↻</button><button class="btn primary" id="addProductTop">＋ Add product</button></div>
+        <div class="top-actions"><div class="date-chip" id="todayLabel"></div><div class="notification-wrap"><button class="icon-btn notification-bell" id="enableNotificationsBtn" title="Notifications" aria-label="Open notifications" aria-expanded="false"><i class="fa-regular fa-bell" aria-hidden="true"></i><span id="notificationBadge" class="notification-badge hidden">0</span></button><section id="notificationPanel" class="notification-panel hidden" aria-label="Notifications"><div class="notification-panel-head"><strong>Notifications</strong><button type="button" id="clearNotificationsBtn" class="text-btn">Clear all</button></div><div id="notificationList" class="notification-list"><p class="notification-empty">You’re all caught up.</p></div><button type="button" id="allowBrowserNotificationsBtn" class="notification-enable">Enable desktop notifications</button></section></div><button class="icon-btn" id="refreshBtn" title="Refresh data"><i class="fa-solid fa-rotate" aria-hidden="true"></i></button><button class="btn primary" id="addProductTop"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add product</button></div>
       </header>
 
       <section id="dashboardView" class="view">
         <div class="welcome-row"><div><h1>Good day 👋</h1><p class="muted">Here’s what’s happening with your inventory.</p></div><span class="live-pill"><i></i> Inventory overview</span></div>
         <div class="stats-grid">
-          <article class="stat-card glass"><div class="stat-top"><span>Total products</span><span class="stat-icon violet">▤</span></div><h2 id="totalProducts">0</h2><p class="stat-foot">Unique product listings</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Units in stock</span><span class="stat-icon blue">▦</span></div><h2 id="totalUnits">0</h2><p class="stat-foot">Across all products</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Inventory value</span><span class="stat-icon green">¤</span></div><h2 id="inventoryValue">₦0</h2><p class="stat-foot">Based on purchase price</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Total products</span><span class="stat-icon violet"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span></div><h2 id="totalProducts">0</h2><p class="stat-foot">Unique product listings</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Units in stock</span><span class="stat-icon blue"><i class="fa-solid fa-table-cells-large" aria-hidden="true"></i></span></div><h2 id="totalUnits">0</h2><p class="stat-foot">Across all products</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Inventory value</span><span class="stat-icon green"><i class="fa-solid fa-coins" aria-hidden="true"></i></span></div><h2 id="inventoryValue">₦0</h2><p class="stat-foot">Based on purchase price</p></article>
           <article class="stat-card glass"><div class="stat-top"><span>Low stock</span><span class="stat-icon orange">!</span></div><h2 id="lowStockCount">0</h2><p class="stat-foot">At or below reorder level</p></article>
         </div>
         <div class="dashboard-grid">
@@ -72,7 +73,7 @@
         <div class="pos-layout">
           <section class="panel glass pos-products-panel">
             <div class="panel-heading"><div><h3>Choose products</h3><p class="muted">Search the catalogue and add items to the cart.</p></div></div>
-            <div class="search-box pos-search"><span>⌕</span><input id="posSearch" type="search" placeholder="Search product name, category or brand..." aria-label="Search products for checkout"></div>
+            <div class="search-box pos-search"><span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span><input id="posSearch" type="search" placeholder="Search product name, category or brand..." aria-label="Search products for checkout"></div>
             <div id="posProductResults" class="pos-product-results"></div>
           </section>
           <section class="panel glass pos-cart-panel">
@@ -95,16 +96,16 @@
 
       <section id="productsView" class="view hidden">
         <div class="section-intro"><div><h1>Product catalogue</h1><p class="muted">Manage products, pricing and stock for your business.</p></div><button class="btn primary" id="addProductBtn">＋ Add product</button></div>
-        <div class="toolbar glass"><div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search product name, brand, size or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
-        <section class="panel glass"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>BUY PRICE</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th><th></th></tr></thead><tbody id="productsTable"></tbody></table><div id="emptyProducts" class="empty-state hidden"><div class="empty-icon">▤</div><h3>No products found</h3><p>Add your first product or adjust your search.</p><button class="btn primary" id="emptyAddBtn">＋ Add product</button></div></div></section>
+        <div class="toolbar glass"><div class="search-box"><span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span><input id="searchInput" type="search" placeholder="Search product name, brand, size or category..."></div><select id="categoryFilter" aria-label="Filter category"><option value="">All categories</option></select><select id="stockFilter" aria-label="Filter stock"><option value="">All stock levels</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><input id="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden><button class="btn secondary export-btn" id="importBtn" type="button">↑ Import Excel</button><button class="btn secondary export-btn" id="exportBtn" type="button">↓ Export Excel</button></div>
+        <section class="panel glass"><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>BUY PRICE</th><th>SELL PRICE</th><th>QUANTITY</th><th>STATUS</th><th></th></tr></thead><tbody id="productsTable"></tbody></table><div id="emptyProducts" class="empty-state hidden"><div class="empty-icon"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></div><h3>No products found</h3><p>Add your first product or adjust your search.</p><button class="btn primary" id="emptyAddBtn">＋ Add product</button></div></div></section>
       </section>
 
       <section id="salesView" class="view hidden">
         <div class="section-intro"><div><h1>Sales management</h1><p class="muted">Track every sale, daily revenue, estimated gross profit and reprint receipts.</p></div><button class="btn primary" id="recordSaleBtn">＋ Record a sale</button></div>
         <div class="stats-grid sales-stats">
-          <article class="stat-card glass"><div class="stat-top"><span>Sales today</span><span class="stat-icon violet">▤</span></div><h2 id="salesTodayCount">0</h2><p class="stat-foot">Completed transactions</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Revenue today</span><span class="stat-icon green">¤</span></div><h2 id="salesTodayRevenue">₦0</h2><p class="stat-foot">Sales value recorded today</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Gross profit today</span><span class="stat-icon orange">↗</span></div><h2 id="salesTodayProfit">₦0</h2><p class="stat-foot">Revenue less recorded product cost</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Sales today</span><span class="stat-icon violet"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span></div><h2 id="salesTodayCount">0</h2><p class="stat-foot">Completed transactions</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Revenue today</span><span class="stat-icon green"><i class="fa-solid fa-coins" aria-hidden="true"></i></span></div><h2 id="salesTodayRevenue">₦0</h2><p class="stat-foot">Sales value recorded today</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Gross profit today</span><span class="stat-icon orange"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i></span></div><h2 id="salesTodayProfit">₦0</h2><p class="stat-foot">Revenue less recorded product cost</p></article>
         </div>
         <section class="panel glass"><div class="panel-heading"><div><h3>Sales history</h3><p class="muted">Reprint receipts and review recorded sales.</p></div><div class="period-filters"><label class="period-label">Reporting month<input id="salesMonthFilter" type="month" aria-label="Sales reporting month"></label><input id="salesSearch" class="sales-search" type="search" placeholder="Search receipt, customer or product" aria-label="Search sales"></div></div>
           <div class="table-wrap"><table><thead><tr><th>DATE</th><th>RECEIPT</th><th>PRODUCT</th><th>CUSTOMER</th><th>QTY</th><th>UNIT PRICE</th><th>TOTAL</th><th>GROSS PROFIT</th><th></th></tr></thead><tbody id="salesTable"></tbody></table><div id="emptySales" class="empty-state"><div class="empty-icon">₦</div><h3>No sales recorded yet</h3><p>Record a sale to see revenue and receipts here.</p><button class="btn primary" id="emptyRecordSaleBtn">＋ Record a sale</button></div></div>
@@ -128,7 +129,7 @@
       <section id="attendanceView" class="view hidden">
   <div class="section-intro"><div><h1>My Attendance</h1><p class="muted">Scan the QR code displayed at your workplace to clock in or clock out.</p></div></div>
   <section class="panel glass staff-attendance-panel">
-    <div class="staff-attendance-intro"><div class="staff-attendance-icon">◷</div><div><h3>Clock in / clock out</h3><p class="muted">Sign in with your own Manager or Sales Rep account, then scan the store's printed attendance QR code.</p></div></div>
+    <div class="staff-attendance-intro"><div class="staff-attendance-icon"><i class="fa-regular fa-clock" aria-hidden="true"></i></div><div><h3>Clock in / clock out</h3><p class="muted">Sign in with your own Manager or Sales Rep account, then scan the store's printed attendance QR code.</p></div></div>
     <div class="staff-attendance-status"><span class="status-dot"></span><div><strong id="myAttendanceStatus">Checking your shift…</strong><small id="myAttendanceLastTime">Your attendance status will appear here.</small></div></div>
     <div id="attendanceScanner" class="attendance-scanner hidden"></div>
     <p id="attendanceScannerMessage" class="form-message" aria-live="polite">Camera scanning works on HTTPS. Allow camera access when your browser asks.</p>
@@ -154,15 +155,9 @@
             <button class="btn primary" type="button" id="subscribeLogoBtn">Subscribe for ₦1,500/month</button>
           </section>
           <section class="appearance-settings" aria-labelledby="appearanceHeading">
-            <div class="appearance-heading"><div><h3 id="appearanceHeading">Appearance</h3><p class="muted">Choose your preferred site color and switch between day and night mode.</p></div></div>
+            <div class="appearance-heading"><div><h3 id="appearanceHeading">Appearance</h3><p class="muted">Switch between day and night mode, and choose your site accent color.</p></div></div>
             <div class="appearance-controls">
-              <div class="appearance-control">
-                <span class="appearance-label">Day / night mode</span>
-                <div class="theme-switch" role="group" aria-label="Choose display mode">
-                  <button class="btn secondary theme-mode-btn" type="button" id="themeLightBtn" aria-pressed="false">☀️ Day mode</button>
-                  <button class="btn secondary theme-mode-btn" type="button" id="themeDarkBtn" aria-pressed="true">🌙 Night mode</button>
-                </div>
-              </div>
+              <div class="appearance-control"><span class="appearance-label">Day / night mode</span><button class="btn secondary theme-toggle-btn" type="button" id="themeToggleBtn" aria-label="Switch to day mode" aria-pressed="false"><i class="fa-solid fa-sun" aria-hidden="true"></i><span id="themeToggleLabel">Switch to day mode</span></button></div>
               <label class="appearance-control accent-control" for="themeAccentColor">
                 <span class="appearance-label">Site accent color</span>
                 <span class="accent-picker-wrap"><input id="themeAccentColor" type="color" value="#8b7cff" aria-label="Choose your site accent color"><span class="muted">Pick any color you like</span></span>
