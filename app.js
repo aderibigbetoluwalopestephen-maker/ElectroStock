@@ -881,6 +881,8 @@
 
   async function refreshForLiveUpdates(){
     if(notificationRefreshInProgress||document.hidden||!session?.user?.id||localMode)return;
+    if(!$("settingsView").classList.contains("hidden")||document.querySelector(".modal-backdrop:not(.hidden), .modal:not(.hidden), #onboardingModal:not(.hidden)"))return;
+    if(document.activeElement&&/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName))return;
     notificationRefreshInProgress=true;
     try{await loadCloud({silent:true});}
     catch(error){console.warn("Background refresh failed:",error);}
