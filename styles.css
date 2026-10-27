@@ -198,3 +198,31 @@
 #themeAccentColor{width:52px;height:42px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer}
 .appearance-note{margin:14px 0 0}
 @media(max-width:600px){.appearance-controls{grid-template-columns:1fr;gap:18px}.theme-mode-btn{flex:1}}
+
+/* Day mode contrast fixes: ensure every surface and nested detail stays readable */
+:root[data-theme="light"] .notification-panel{background:#fff;color:#182235;border-color:#d7deea;box-shadow:0 18px 55px rgba(25,40,65,.18)}
+:root[data-theme="light"] .notification-panel-head{border-color:#e0e6ef}
+:root[data-theme="light"] .notification-item{color:#182235;border-color:#e5eaf2}
+:root[data-theme="light"] .notification-item:hover{background:#f0f3f9}
+:root[data-theme="light"] .notification-item.unread{background:color-mix(in srgb,var(--purple) 9%,white)}
+:root[data-theme="light"] .notification-item-icon{background:color-mix(in srgb,var(--purple) 13%,white);color:var(--purple)}
+:root[data-theme="light"] .notification-enable{background:#f2f5fa;color:var(--purple);border-color:#e0e6ef}
+:root[data-theme="light"] .notification-badge{border-color:#fff}
+:root[data-theme="light"] .muted,:root[data-theme="light"] small.muted,:root[data-theme="light"] .tiny.muted{color:#5b667a}
+:root[data-theme="light"] label,:root[data-theme="light"] .form-grid label,:root[data-theme="light"] .appearance-label{color:#263247}
+:root[data-theme="light"] .eyebrow,:root[data-theme="light"] .tiny,:root[data-theme="light"] .form-message{color:#5b667a}
+:root[data-theme="light"] .product-thumb,:root[data-theme="light"] .settings-logo-preview{background:#e8edf5;color:#3c4a62}
+:root[data-theme="light"] .nav-count{background:#e6ebf4;color:#344256}
+:root[data-theme="light"] .owner-card,:root[data-theme="light"] .sidebar-bottom{color:#263247}
+:root[data-theme="light"] .stat-card p,:root[data-theme="light"] .stat-card span,:root[data-theme="light"] .section-intro p{color:#5b667a}
+:root[data-theme="light"] .table-product strong,:root[data-theme="light"] td strong{color:#182235}
+:root[data-theme="light"] td{color:#263247;border-bottom-color:#e4e9f1}
+:root[data-theme="light"] .pill,:root[data-theme="light"] .status-badge{color:#344256}
+:root[data-theme="light"] .modal-backdrop{background:rgba(18,28,45,.55)}
+:root[data-theme="light"] .modal{background:#fff;color:#182235;border:1px solid #dce3ed}
+:root[data-theme="light"] .modal h2,:root[data-theme="light"] .modal h3,:root[data-theme="light"] .modal p{color:inherit}
+:root[data-theme="light"] .toast{background:#182235;color:#fff}
+:root[data-theme="light"] .form-message{color:#344256}
+:root[data-theme="light"] .subscription-card{background:#f8faff;border-color:#dce3ed;color:#182235}
+:root[data-theme="light"] .staff-plan-limit{background:color-mix(in srgb,var(--purple) 9%,white);color:#344256}
+:root[data-theme="light"] .attendance-qr-print-area{background:#fff;color:#182235}
