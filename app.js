@@ -239,6 +239,25 @@
   function saveSeenChatIds(){try{sessionStorage.setItem(chatStorageKey(),JSON.stringify([...seenChatMessageIds].slice(-500)));}catch{}}
   function updateChatBadge(){const badge=$("chatUnreadBadge"),button=$("floatingChatBtn");if(!badge||!button)return;badge.textContent=chatUnreadCount>99?"99+":String(chatUnreadCount);badge.classList.toggle("hidden",chatUnreadCount===0);button.classList.toggle("has-unread",chatUnreadCount>0);button.setAttribute("aria-label",chatUnreadCount?`Open internal team chat, ${chatUnreadCount} unread messages`:"Open internal team chat");}
   function markChatRead(){chatUnreadCount=0;teamMessages.forEach(m=>seenChatMessageIds.add(m.id));saveSeenChatIds();updateChatBadge();}
+  const notificationItems=[];
+  let unreadNotificationCount=0;
+  function renderNotifications(){
+    const badge=$("notificationBadge"),list=$("notificationList");
+    if(!badge||!list)return;
+    badge.textContent=unreadNotificationCount>99?"99+":String(unreadNotificationCount);
+    badge.classList.toggle("hidden",unreadNotificationCount===0);
+    list.innerHTML=notificationItems.length?notificationItems.map((n,i)=>'<button type="button" class="notification-item '+(n.read?"read":"unread")+'" data-notification-index="'+i+'"><span class="notification-item-icon">'+(n.kind==="chat"?"✉":"◷")+'</span><span class="notification-item-copy"><strong>'+esc(n.title)+'</strong><small>'+esc(n.body)+'</small><time>'+esc(n.time)+'</time></span></button>').join(""):'<p class="notification-empty">You’re all caught up.</p>';
+  }
+  function addNotification(title,body,kind="attendance"){
+    notificationItems.unshift({title,body,kind,time:new Date().toLocaleTimeString("en-NG",{hour:"2-digit",minute:"2-digit"}),read:false});
+    if(notificationItems.length>50)notificationItems.length=50;
+    unreadNotificationCount=notificationItems.filter(n=>!n.read).length;
+    renderNotifications();
+  }
+  function closeNotificationPanel(){
+    $("notificationPanel")?.classList.add("hidden");
+    $("enableNotificationsBtn")?.setAttribute("aria-expanded","false");
+  }
   function sendBrowserNotification(title,body,tag){
     if(!document.hidden||!("Notification" in window)||Notification.permission!=="granted")return;
     try{new Notification("ElectroStock · "+title,{body,tag});}catch{}
@@ -261,7 +280,7 @@
         const chatOpen=!$("teamChatPanel").classList.contains("hidden");
         if(!chatOpen){chatUnreadCount++;updateChatBadge();}
         const sender=teamMembers.find(m=>m.user_id===message.sender_id)?.display_name||(message.sender_id===teamOwnerId?"Store owner":"Team member");
-        toast("New message from "+sender+": "+String(message.message||"").slice(0,70));
+        const messageBody=String(message.message||"New message");addNotification("New team message · "+sender,messageBody,"chat");toast("New message from "+sender+": "+messageBody.slice(0,70));
         sendBrowserNotification("New team message · "+sender,String(message.message||"New message").slice(0,120),"electrostock-message-"+message.id);
         renderTeam();
       })
@@ -270,7 +289,7 @@
         const staff=teamMembers.find(m=>m.user_id===row.user_id);
         const who=staff?.display_name||"A team member";
         const body=who+" clocked in at "+teamDate(row.clock_in)+".";
-        toast(body);sendBrowserNotification("Staff clock-in",body,"electrostock-attendance-in-"+row.id);
+        addNotification("Staff clock-in",body,"attendance");toast(body);sendBrowserNotification("Staff clock-in",body,"electrostock-attendance-in-"+row.id);
         refreshTeam();
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"staff_attendance",filter:"owner_id=eq."+teamOwnerId},payload=>{
@@ -278,7 +297,7 @@
         const staff=teamMembers.find(m=>m.user_id===row.user_id);
         const who=staff?.display_name||"A team member";
         const body=who+" clocked out at "+teamDate(row.clock_out)+".";
-        toast(body);sendBrowserNotification("Staff clock-out",body,"electrostock-attendance-out-"+row.id);
+        addNotification("Staff clock-out",body,"attendance");toast(body);sendBrowserNotification("Staff clock-out",body,"electrostock-attendance-out-"+row.id);
         refreshTeam();
       }).subscribe();
   }
@@ -729,7 +748,21 @@
     finally{button.textContent="Complete sale";renderPos();}
   });
   $("refreshBtn").addEventListener("click",async()=>{if(localMode)readLocal();else await loadCloud();renderAll();toast("Inventory refreshed.");});
-  $("enableNotificationsBtn").addEventListener("click",requestBrowserNotifications);
+  $("enableNotificationsBtn").addEventListener("click",()=>{
+    const panel=$("notificationPanel"),willOpen=panel.classList.contains("hidden");
+    panel.classList.toggle("hidden",!willOpen);
+    $("enableNotificationsBtn").setAttribute("aria-expanded",String(willOpen));
+    if(willOpen){notificationItems.forEach(n=>n.read=true);unreadNotificationCount=0;renderNotifications();}
+  });
+  $("allowBrowserNotificationsBtn").addEventListener("click",requestBrowserNotifications);
+  $("clearNotificationsBtn").addEventListener("click",()=>{notificationItems.length=0;unreadNotificationCount=0;renderNotifications();});
+  $("notificationList").addEventListener("click",e=>{
+    const item=e.target.closest("[data-notification-index]");if(!item)return;
+    const notification=notificationItems[Number(item.dataset.notificationIndex)];
+    if(notification){notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;renderNotifications();}
+  });
+  document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
+
   function openModal(id=null){if(!canManageProducts()){toast("Only the owner or a manager can edit products.");return;}
     $("productForm").reset();$("productId").value="";$("productThreshold").value=3;$("productQty").value=0;$("productMessage").textContent="";$("modalTitle").textContent=id?"Edit product":"Add product";$("saveProductBtn").textContent=id?"Save changes":"Save product";
     if(id){const p=products.find(x=>x.id===id);if(!p)return;$("productId").value=p.id;$("productName").value=p.name||"";$("productBrand").value=p.brand||"";$("productModel").value=p.model||"";$("productCategory").value=p.category||"";$("productQty").value=p.quantity??0;$("productBuy").value=p.purchase_price??0;$("productSell").value=p.selling_price??0;$("productThreshold").value=p.low_stock_threshold??3;$("productImage").value=p.image_url||"";$("productDescription").value=p.description||"";}
