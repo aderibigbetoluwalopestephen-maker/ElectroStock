@@ -94,11 +94,11 @@
       if(!fullName){authMessage("Enter your full name.");return;}
       if(password!==$("confirmPassword").value){authMessage("The passwords do not match.");return;}
       $("loginBtn").disabled=true;$("loginBtn").textContent="Creating account…";
-      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName},emailRedirectTo:window.location.origin+"/?auth=verified"}});
+      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName}}});
       $("loginBtn").disabled=false;$("loginBtn").textContent="Create account";
       if(error){authMessage(error.message);return;}
       if(data.session){session=data.session;showApp();await loadCloud();}
-      else {setAuthMode("login");$("email").value=email;authMessage("Account created. Check your email for the verification link, then return here and sign in.");}
+      else {setAuthMode("login");$("email").value=email;authMessage("Account created. If you are still asked to verify your email, the Owner must turn off Confirm email in Supabase Authentication settings before new users can sign in directly.");}
       return;
     }
     $("loginBtn").disabled=true;$("loginBtn").textContent="Signing in…";
@@ -239,6 +239,17 @@
   function saveSeenChatIds(){try{sessionStorage.setItem(chatStorageKey(),JSON.stringify([...seenChatMessageIds].slice(-500)));}catch{}}
   function updateChatBadge(){const badge=$("chatUnreadBadge"),button=$("floatingChatBtn");if(!badge||!button)return;badge.textContent=chatUnreadCount>99?"99+":String(chatUnreadCount);badge.classList.toggle("hidden",chatUnreadCount===0);button.classList.toggle("has-unread",chatUnreadCount>0);button.setAttribute("aria-label",chatUnreadCount?`Open internal team chat, ${chatUnreadCount} unread messages`:"Open internal team chat");}
   function markChatRead(){chatUnreadCount=0;teamMessages.forEach(m=>seenChatMessageIds.add(m.id));saveSeenChatIds();updateChatBadge();}
+  function sendBrowserNotification(title,body,tag){
+    if(!document.hidden||!("Notification" in window)||Notification.permission!=="granted")return;
+    try{new Notification("ElectroStock · "+title,{body,tag});}catch{}
+  }
+  async function requestBrowserNotifications(){
+    if(!("Notification" in window)){toast("Browser notifications are not supported here. In-app alerts will still work.");return;}
+    if(Notification.permission==="granted"){toast("Browser notifications are already enabled.");return;}
+    if(Notification.permission==="denied"){toast("Notifications are blocked by your browser. Allow them in site settings.");return;}
+    try{const permission=await Notification.requestPermission();toast(permission==="granted"?"Browser notifications enabled.":"In-app alerts will continue; browser notifications were not enabled.");}
+    catch{toast("Could not enable browser notifications. Check your browser site settings.");}
+  }
   function stopTeamMessageNotifications(){if(teamMessageChannel&&supabase){supabase.removeChannel(teamMessageChannel);teamMessageChannel=null;}}
   function startTeamMessageNotifications(){
     stopTeamMessageNotifications();
@@ -251,8 +262,24 @@
         if(!chatOpen){chatUnreadCount++;updateChatBadge();}
         const sender=teamMembers.find(m=>m.user_id===message.sender_id)?.display_name||(message.sender_id===teamOwnerId?"Store owner":"Team member");
         toast("New message from "+sender+": "+String(message.message||"").slice(0,70));
-        if(document.hidden&&"Notification" in window&&Notification.permission==="granted"){try{new Notification("ElectroStock · "+sender,{body:String(message.message||"New message").slice(0,120),tag:"electrostock-message-"+message.id});}catch{}}
+        sendBrowserNotification("New team message · "+sender,String(message.message||"New message").slice(0,120),"electrostock-message-"+message.id);
         renderTeam();
+      })
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"staff_attendance",filter:"owner_id=eq."+teamOwnerId},payload=>{
+        const row=payload.new;if(!row?.id||row.user_id===session?.user?.id)return;
+        const staff=teamMembers.find(m=>m.user_id===row.user_id);
+        const who=staff?.display_name||"A team member";
+        const body=who+" clocked in at "+teamDate(row.clock_in)+".";
+        toast(body);sendBrowserNotification("Staff clock-in",body,"electrostock-attendance-in-"+row.id);
+        refreshTeam();
+      })
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"staff_attendance",filter:"owner_id=eq."+teamOwnerId},payload=>{
+        const row=payload.new,previous=payload.old;if(!row?.id||row.user_id===session?.user?.id||!row.clock_out||previous?.clock_out)return;
+        const staff=teamMembers.find(m=>m.user_id===row.user_id);
+        const who=staff?.display_name||"A team member";
+        const body=who+" clocked out at "+teamDate(row.clock_out)+".";
+        toast(body);sendBrowserNotification("Staff clock-out",body,"electrostock-attendance-out-"+row.id);
+        refreshTeam();
       }).subscribe();
   }
   const canManageStaff=()=>currentRole==="owner";
@@ -702,6 +729,7 @@
     finally{button.textContent="Complete sale";renderPos();}
   });
   $("refreshBtn").addEventListener("click",async()=>{if(localMode)readLocal();else await loadCloud();renderAll();toast("Inventory refreshed.");});
+  $("enableNotificationsBtn").addEventListener("click",requestBrowserNotifications);
   function openModal(id=null){if(!canManageProducts()){toast("Only the owner or a manager can edit products.");return;}
     $("productForm").reset();$("productId").value="";$("productThreshold").value=3;$("productQty").value=0;$("productMessage").textContent="";$("modalTitle").textContent=id?"Edit product":"Add product";$("saveProductBtn").textContent=id?"Save changes":"Save product";
     if(id){const p=products.find(x=>x.id===id);if(!p)return;$("productId").value=p.id;$("productName").value=p.name||"";$("productBrand").value=p.brand||"";$("productModel").value=p.model||"";$("productCategory").value=p.category||"";$("productQty").value=p.quantity??0;$("productBuy").value=p.purchase_price??0;$("productSell").value=p.selling_price??0;$("productThreshold").value=p.low_stock_threshold??3;$("productImage").value=p.image_url||"";$("productDescription").value=p.description||"";}
