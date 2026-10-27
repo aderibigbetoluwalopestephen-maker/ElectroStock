@@ -617,6 +617,41 @@
     else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:teamOwnerId||session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
+  const appearanceStorageKey = "electrostock_appearance_v1";
+  const defaultAppearance = { mode:"dark", accent:"#8b7cff" };
+  function readAppearance(){
+    try {
+      const saved=JSON.parse(localStorage.getItem(appearanceStorageKey)||"{}");
+      const accent=/^#[0-9a-f]{6}$/i.test(saved.accent||"")?saved.accent:"#8b7cff";
+      return {mode:saved.mode==="light"?"light":"dark",accent};
+    } catch { return {...defaultAppearance}; }
+  }
+  function applyAppearance(save=true){
+    const mode=$("themeLightBtn")?.getAttribute("aria-pressed")==="true"?"light":appearance.mode;
+    appearance.mode=mode;
+    document.documentElement.dataset.theme=mode;
+    document.documentElement.style.setProperty("--purple",appearance.accent);
+    document.documentElement.style.setProperty("--cyan",appearance.accent);
+    const picker=$("themeAccentColor");
+    if(picker&&picker.value!==appearance.accent)picker.value=appearance.accent;
+    $("themeLightBtn")?.setAttribute("aria-pressed",String(mode==="light"));
+    $("themeDarkBtn")?.setAttribute("aria-pressed",String(mode==="dark"));
+    if(save){try{localStorage.setItem(appearanceStorageKey,JSON.stringify(appearance));}catch{}}
+  }
+  let appearance=readAppearance();
+  function setAppearanceMode(mode){
+    appearance.mode=mode==="light"?"light":"dark";
+    document.documentElement.dataset.theme=appearance.mode;
+    $("themeLightBtn")?.setAttribute("aria-pressed",String(appearance.mode==="light"));
+    $("themeDarkBtn")?.setAttribute("aria-pressed",String(appearance.mode==="dark"));
+    applyAppearance(true);
+  }
+  document.documentElement.dataset.theme=appearance.mode;
+  document.documentElement.style.setProperty("--purple",appearance.accent);
+  document.documentElement.style.setProperty("--cyan",appearance.accent);
+  $("themeLightBtn")?.addEventListener("click",()=>setAppearanceMode("light"));
+  $("themeDarkBtn")?.addEventListener("click",()=>setAppearanceMode("dark"));
+  $("themeAccentColor")?.addEventListener("input",e=>{appearance.accent=e.target.value;applyAppearance(true);});
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
   async function importInventory(file){
