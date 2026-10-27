@@ -750,11 +750,11 @@
     btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
   });
   const appearanceStorageKey = "electrostock_appearance_v1";
-  const defaultAppearance = { mode:"light", accent:"#247b57" };
+  const defaultAppearance = { mode:"dark", accent:"#8b7cff" };
   function readAppearance(){
     try {
       const saved=JSON.parse(localStorage.getItem(appearanceStorageKey)||"{}");
-      const accent=/^#[0-9a-f]{6}$/i.test(saved.accent||"")?saved.accent:"#247b57";
+      const accent=/^#[0-9a-f]{6}$/i.test(saved.accent||"")?saved.accent:"#8b7cff";
       return {mode:saved.mode==="light"?"light":"dark",accent};
     } catch { return {...defaultAppearance}; }
   }
