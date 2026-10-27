@@ -37,7 +37,7 @@
       <button class="nav-item" data-view="products"><span>▤</span> Products <span class="nav-count" id="productNavCount">0</span></button>
       <button class="nav-item" data-view="pos"><span>▣</span> Point of Sale</button>
       <button class="nav-item" data-view="sales"><span>↗</span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
-      <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button><button class="nav-item" data-view="team"><span>♧</span> Staff & Team</button>
+      <button class="nav-item" data-view="stock"><span>↕</span> Stock movement</button><button class="nav-item" data-view="attendance"><span>◷</span> Attendance</button><button class="nav-item" data-view="team"><span>♧</span> Staff & Team</button>
       <button class="nav-item" data-view="settings"><span>⚙</span> Company settings</button>
       <div class="sidebar-bottom">
         <div class="owner-card"><div class="avatar" id="ownerAvatar">O</div><div><strong id="ownerDisplayName">Store owner</strong><small id="ownerEmail">Private workspace</small></div></div>
@@ -125,7 +125,19 @@
         </section>
         <section class="panel glass"><div class="panel-heading"><div><h3>Movement history</h3><p class="muted">Monthly stock activity. Physical stock quantities are not reset.</p></div><label class="period-label">Reporting month<input id="movementMonthFilter" type="month" aria-label="Stock movement reporting month"></label></div><div class="monthly-stock-summary"><article><span>Units added this month</span><strong id="monthlyStockAdded">0</strong></article><article><span>Units sold this month</span><strong id="monthlyStockSold">0</strong></article><article><span>Net stock movement</span><strong id="monthlyStockNet">0</strong></article></div><div class="table-wrap"><table><thead><tr><th>DATE</th><th>PRODUCT</th><th>TYPE</th><th>CHANGE</th><th>NOTE</th></tr></thead><tbody id="movementTable"></tbody></table><div id="emptyMovements" class="empty-state"><p>No stock movements recorded yet.</p></div></div></section>
       </section>
-      <section id="teamView" class="view hidden">
+      <section id="attendanceView" class="view hidden">
+  <div class="section-intro"><div><h1>My Attendance</h1><p class="muted">Scan the QR code displayed at your workplace to clock in or clock out.</p></div></div>
+  <section class="panel glass staff-attendance-panel">
+    <div class="staff-attendance-intro"><div class="staff-attendance-icon">◷</div><div><h3>Clock in / clock out</h3><p class="muted">Sign in with your own Manager or Sales Rep account, then scan the store's printed attendance QR code.</p></div></div>
+    <div class="staff-attendance-status"><span class="status-dot"></span><div><strong id="myAttendanceStatus">Checking your shift…</strong><small id="myAttendanceLastTime">Your attendance status will appear here.</small></div></div>
+    <div id="attendanceScanner" class="attendance-scanner hidden"></div>
+    <p id="attendanceScannerMessage" class="form-message" aria-live="polite">Camera scanning works on HTTPS. Allow camera access when your browser asks.</p>
+    <div class="staff-attendance-actions"><button class="btn primary" id="startAttendanceScanBtn" type="button">Scan QR Code</button><button class="btn secondary hidden" id="stopAttendanceScanBtn" type="button">Stop camera</button><button class="btn secondary" id="refreshMyAttendanceBtn" type="button">Refresh status</button></div>
+    <p class="tiny muted">You can scan the same store QR code again when leaving. ElectroStock will offer Clock Out if you are already clocked in.</p>
+  </section>
+  <section class="panel glass"><div class="panel-heading"><div><h3>My recent attendance</h3><p class="muted">Your recorded shifts for the current month.</p></div></div><div class="table-wrap"><table><thead><tr><th>DATE</th><th>CLOCK IN</th><th>CLOCK OUT</th><th>HOURS</th></tr></thead><tbody id="myAttendanceTable"><tr><td colspan="4">Loading attendance…</td></tr></tbody></table></div></section>
+</section>
+<section id="teamView" class="view hidden">
 <div class="section-intro"><div><h1>Staff & Team</h1><p class="muted">Manage staff, team chat, announcements, and attendance.</p></div></div>
 <div class="team-tabs"><button class="team-tab active" data-team-tab="staff">Staff & roles</button><button class="team-tab" data-team-tab="chat">Internal chat</button><button class="team-tab" data-team-tab="announcements">Announcements</button><button class="team-tab" data-team-tab="attendance">Attendance</button></div>
 <section class="panel glass team-panel" id="teamStaffPanel"><h3>Store staff</h3><p class="muted">Managers manage products and stock. Sales reps handle sales.</p><form id="inviteStaffForm" class="team-form"><label>Full name<input id="staffFullName" required maxlength="100" autocomplete="name" placeholder="Staff member name"></label><label>Email<input id="staffEmail" required type="email" maxlength="180" autocomplete="email" placeholder="staff@example.com"></label><label>Initial password<input id="staffPassword" type="password" required minlength="8" maxlength="72" autocomplete="new-password" placeholder="At least 8 characters"></label><label>Phone<input id="staffPhone" type="tel" maxlength="40" autocomplete="tel"></label><label>Role<select id="staffRole"><option value="manager">Manager</option><option value="sales_rep">Sales Rep</option></select></label><button class="btn primary" id="inviteStaffBtn" type="submit">Invite staff</button></form><p class="tiny muted">The staff member will receive an invitation email. Share the initial password securely and ask them to change it after signing in.</p><p id="teamStaffMessage" class="form-message"></p><div class="table-wrap"><table><thead><tr><th>STAFF</th><th>EMAIL</th><th>ROLE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody id="teamStaffTable"></tbody></table></div></section>
@@ -215,6 +227,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
