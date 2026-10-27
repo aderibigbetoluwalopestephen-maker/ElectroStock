@@ -859,7 +859,21 @@
   $("notificationList").addEventListener("click",e=>{
     const item=e.target.closest("[data-notification-index]");if(!item)return;
     const notification=notificationItems[Number(item.dataset.notificationIndex)];
-    if(notification){notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;saveNotifications();renderNotifications();}
+    if(!notification)return;
+    notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;saveNotifications();renderNotifications();
+    if(notification.kind==="subscription"){
+      closeNotificationPanel();
+      if(currentRole!=="owner"){toast("Ask the store owner to manage the subscription.");return;}
+      switchView("settings");
+      const card=$("logoSubscriptionCard");
+      if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
+      if(!hasActiveLogoSubscription()){
+        // Keep the payment launch inside the user's click gesture so Paystack can open.
+        $("subscribeLogoBtn").click();
+      }else{
+        toast("Your logo subscription is already active.");
+      }
+    }
   });
   document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
 
