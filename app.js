@@ -652,6 +652,7 @@
   $("themeLightBtn")?.addEventListener("click",()=>setAppearanceMode("light"));
   $("themeDarkBtn")?.addEventListener("click",()=>setAppearanceMode("dark"));
   $("themeAccentColor")?.addEventListener("input",e=>{appearance.accent=e.target.value;applyAppearance(true);});
+  applyAppearance(false);
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
   async function importInventory(file){
