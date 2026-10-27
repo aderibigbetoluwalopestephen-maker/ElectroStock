@@ -226,3 +226,11 @@
 :root[data-theme="light"] .subscription-card{background:#f8faff;border-color:#dce3ed;color:#182235}
 :root[data-theme="light"] .staff-plan-limit{background:color-mix(in srgb,var(--purple) 9%,white);color:#344256}
 :root[data-theme="light"] .attendance-qr-print-area{background:#fff;color:#182235}
+
+/* Font Awesome icon consistency and single day/night toggle */
+.nav-item>span:first-child{display:inline-flex;align-items:center;justify-content:center;width:22px}
+.nav-item>span:first-child .fa-solid,.nav-item>span:first-child .fa-regular{font-size:15px}
+.stat-icon,.empty-icon,.staff-attendance-icon,.notification-item-icon{display:inline-flex;align-items:center;justify-content:center}
+.theme-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;width:max-content;max-width:100%;font-weight:700}
+.theme-toggle-btn i{font-size:16px}
+:root[data-theme="light"] .theme-toggle-btn{background:#edf1f7;color:#27344a;border-color:var(--line)}
