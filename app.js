@@ -658,30 +658,30 @@
     } catch { return {...defaultAppearance}; }
   }
   function applyAppearance(save=true){
-    const mode=$("themeLightBtn")?.getAttribute("aria-pressed")==="true"?"light":appearance.mode;
-    appearance.mode=mode;
+    const mode=appearance.mode;
     document.documentElement.dataset.theme=mode;
     document.documentElement.style.setProperty("--purple",appearance.accent);
     document.documentElement.style.setProperty("--cyan",appearance.accent);
     const picker=$("themeAccentColor");
     if(picker&&picker.value!==appearance.accent)picker.value=appearance.accent;
-    $("themeLightBtn")?.setAttribute("aria-pressed",String(mode==="light"));
-    $("themeDarkBtn")?.setAttribute("aria-pressed",String(mode==="dark"));
+    const toggle=$("themeToggleBtn");
+    if(toggle){
+      const isLight=mode==="light";
+      toggle.setAttribute("aria-pressed",String(isLight));
+      toggle.setAttribute("aria-label",isLight?"Switch to night mode":"Switch to day mode");
+      toggle.innerHTML=(isLight?'<i class="fa-solid fa-moon" aria-hidden="true"></i>':'<i class="fa-solid fa-sun" aria-hidden="true"></i>')+'<span>'+(isLight?"Switch to night mode":"Switch to day mode")+'</span>';
+    }
     if(save){try{localStorage.setItem(appearanceStorageKey,JSON.stringify(appearance));}catch{}}
   }
   let appearance=readAppearance();
   function setAppearanceMode(mode){
     appearance.mode=mode==="light"?"light":"dark";
-    document.documentElement.dataset.theme=appearance.mode;
-    $("themeLightBtn")?.setAttribute("aria-pressed",String(appearance.mode==="light"));
-    $("themeDarkBtn")?.setAttribute("aria-pressed",String(appearance.mode==="dark"));
     applyAppearance(true);
   }
   document.documentElement.dataset.theme=appearance.mode;
   document.documentElement.style.setProperty("--purple",appearance.accent);
   document.documentElement.style.setProperty("--cyan",appearance.accent);
-  $("themeLightBtn")?.addEventListener("click",()=>setAppearanceMode("light"));
-  $("themeDarkBtn")?.addEventListener("click",()=>setAppearanceMode("dark"));
+  $("themeToggleBtn")?.addEventListener("click",()=>setAppearanceMode(appearance.mode==="dark"?"light":"dark"));
   $("themeAccentColor")?.addEventListener("input",e=>{appearance.accent=e.target.value;applyAppearance(true);});
   applyAppearance(false);
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
