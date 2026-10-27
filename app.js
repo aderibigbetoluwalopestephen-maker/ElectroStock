@@ -15,7 +15,7 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const statusOf = p => Number(p.quantity) <= 0 ? "out" : Number(p.quantity) <= Number(p.low_stock_threshold ?? 3) ? "low" : "in";
   const statusText = s => ({in:"In stock",low:"Low stock",out:"Out of stock"}[s]);
-  const iconFor = cat => ({Phones:"▯",Laptops:"▣",Accessories:"⌁",Audio:"♫",Gaming:"◈",Televisions:"▭",Networking:"⌘",Storage:"▤",Power:"ϟ",Electronics:"▤",Groceries:"▦","Drinks and Beverages":"◉","Food and Snacks":"◇","Household Items":"⌂","Personal Care":"✦","Fashion and Clothing":"◇","Shoes and Bags":"◈","Beauty and Cosmetics":"✦","Health Products":"＋","Hardware and Building Materials":"⚒","Stationery and Books":"▤","Automotive Parts":"⚙"}[cat] || "▤");
+  const iconFor = cat => '<i class="fa-solid '+({Phones:"fa-mobile-screen",Laptops:"fa-laptop",Accessories:"fa-plug",Audio:"fa-headphones",Gaming:"fa-gamepad",Televisions:"fa-tv",Networking:"fa-wifi",Storage:"fa-hard-drive",Power:"fa-bolt",Electronics:"fa-microchip",Groceries:"fa-basket-shopping","Drinks and Beverages":"fa-glass-water","Food and Snacks":"fa-utensils","Household Items":"fa-house","Personal Care":"fa-pump-soap","Fashion and Clothing":"fa-shirt","Shoes and Bags":"fa-bag-shopping","Beauty and Cosmetics":"fa-wand-magic-sparkles","Health Products":"fa-kit-medical","Hardware and Building Materials":"fa-screwdriver-wrench","Stationery and Books":"fa-book","Automotive Parts":"fa-car"}[cat]||"fa-box")+'" aria-hidden="true"></i>';
   const localKey = "electrostock_demo_v1";
   function readLocal(){ try { const d=JSON.parse(localStorage.getItem(localKey)||"{}"); products=d.products||[]; movements=d.movements||[]; sales=d.sales||[]; companySettings={...defaultSettings,...(d.companySettings||{})}; } catch {products=[];movements=[];sales=[];companySettings={...defaultSettings};} }
   function saveLocal(){localStorage.setItem(localKey,JSON.stringify({products,movements,sales,companySettings}));}
@@ -247,7 +247,7 @@
     if(!badge||!list)return;
     badge.textContent=unreadNotificationCount>99?"99+":String(unreadNotificationCount);
     badge.classList.toggle("hidden",unreadNotificationCount===0);
-    list.innerHTML=notificationItems.length?notificationItems.map((n,i)=>'<button type="button" class="notification-item '+(n.read?"read":"unread")+'" data-notification-index="'+i+'"><span class="notification-item-icon">'+(n.kind==="chat"?"✉":"◷")+'</span><span class="notification-item-copy"><strong>'+esc(n.title)+'</strong><small>'+esc(n.body)+'</small><time>'+esc(n.time)+'</time></span></button>').join(""):'<p class="notification-empty">You’re all caught up.</p>';
+    list.innerHTML=notificationItems.length?notificationItems.map((n,i)=>'<button type="button" class="notification-item '+(n.read?"read":"unread")+'" data-notification-index="'+i+'"><span class="notification-item-icon">'+(n.kind==="chat"?'<i class="fa-solid fa-envelope" aria-hidden="true"></i>':'<i class="fa-regular fa-clock" aria-hidden="true"></i>')+'</span><span class="notification-item-copy"><strong>'+esc(n.title)+'</strong><small>'+esc(n.body)+'</small><time>'+esc(n.time)+'</time></span></button>').join(""):'<p class="notification-empty">You’re all caught up.</p>';
   }
   function addNotification(title,body,kind="attendance"){
     notificationItems.unshift({title,body,kind,time:new Date().toLocaleTimeString("en-NG",{hour:"2-digit",minute:"2-digit"}),read:false});
@@ -408,10 +408,10 @@
       else{const shiftId=modal.dataset.shiftId;if(!shiftId)throw new Error("No active check-in was found. Scan the store QR code again.");result=await supabase.from("staff_attendance").update({clock_out:new Date().toISOString()}).eq("id",shiftId).eq("user_id",session.user.id).is("clock_out",null).select("id,clock_out").maybeSingle();if(!result.error&&!result.data)throw new Error("This shift was already checked out. Scan the store QR code again.");}
       if(result.error)throw result.error;const stamp=action==="in"?result.data.clock_in:result.data.clock_out;
       $("attendanceScanBadge").classList.add("success");$("attendanceScanTitle").textContent=action==="in"?"Check-in Successful":"Check-out Successful";$("attendanceScanIntro").textContent=action==="in"?"Your attendance has been recorded successfully.":"Your check-out has been recorded successfully.";
-      $("attendanceScanMessage").textContent="✓ Saved to the store attendance records.";$("attendanceScanTime").textContent=new Date(stamp).toLocaleString("en-NG",{dateStyle:"full",timeStyle:"short"});
-      button.textContent="✓ Done";button.disabled=false;modal.dataset.completed="true";$("cancelAttendanceScanBtn").textContent="Close";
+      $("attendanceScanMessage").innerHTML='<i class="fa-solid fa-check" aria-hidden="true"></i> Saved to the store attendance records.';$("attendanceScanTime").textContent=new Date(stamp).toLocaleString("en-NG",{dateStyle:"full",timeStyle:"short"});
+      button.innerHTML='<i class="fa-solid fa-check" aria-hidden="true"></i> Done';button.disabled=false;modal.dataset.completed="true";$("cancelAttendanceScanBtn").textContent="Close";
       $("attendanceMessage").textContent=action==="in"?"Check-in recorded successfully.":"Check-out recorded successfully.";await loadTeamData();toast(action==="in"?"Check-in successful.":"Check-out successful.");
-    }catch(error){message.textContent=error?.message||"Could not save attendance. Please try again.";button.disabled=false;button.textContent=action==="in"?"✓ Confirm check-in":"✓ Confirm check-out";attendanceActionInProgress=false;}
+    }catch(error){message.textContent=error?.message||"Could not save attendance. Please try again.";button.disabled=false;button.innerHTML=action==="in"?'<i class="fa-solid fa-check" aria-hidden="true"></i> Confirm check-in':'<i class="fa-solid fa-check" aria-hidden="true"></i> Confirm check-out';attendanceActionInProgress=false;}
   }
   function renderTeam(){
     $("teamStaffTable").innerHTML=teamMembers.length?teamMembers.map(m=>"<tr><td>"+esc(m.display_name)+"</td><td>"+esc(m.email)+"</td><td>"+(m.role==="manager"?"Manager":"Sales Rep")+"</td><td>"+(m.active?"Active":"Disabled")+"</td><td>"+(canManageStaff()?'<button class="mini-btn" data-member-toggle="'+m.id+'">'+(m.active?"Disable":"Enable")+"</button>":"—")+"</td></tr>").join(""):'<tr><td colspan="5">No staff members yet.</td></tr>';
@@ -525,14 +525,14 @@
   $("searchInput").addEventListener("input",renderProducts);$("categoryFilter").addEventListener("change",renderProducts);$("stockFilter").addEventListener("change",renderProducts);
   $("exportBtn").addEventListener("click",exportInventory);
   $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
-  $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.textContent="↑ Import Excel";e.target.value="";}});
+  $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Excel';e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
   $("salesMonthFilter").addEventListener("change",renderSales);
   $("movementMonthFilter").addEventListener("change",renderMovements);
   $("attendanceMonthFilter").addEventListener("change",renderTeam);
   function openSaleForm(){switchView("pos");$("posSearch").focus();$("posMessage").textContent="Add products to the cart to start a sale.";}
   $("recordSaleBtn").addEventListener("click",openSaleForm);$("emptyRecordSaleBtn").addEventListener("click",openSaleForm);
-  $("mobileMenuBtn").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded",String(open));$("mobileMenuBtn").textContent=open?"×":"☰";});
+  $("mobileMenuBtn").addEventListener("click",()=>{const open=$("sidebar").classList.toggle("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded",String(open));$("mobileMenuBtn").innerHTML=open?'<i class="fa-solid fa-xmark" aria-hidden="true"></i>':'<i class="fa-solid fa-bars" aria-hidden="true"></i>';});
   $("movementType").addEventListener("change",()=>{$("customerFieldWrap").classList.toggle("hidden",$("movementType").value!=="sale");});
   $("closeReceiptBtn").addEventListener("click",closeReceipt);
   $("printReceiptBtn").addEventListener("click",()=>window.print());
