@@ -27,6 +27,12 @@ create index if not exists support_ticket_messages_ticket_created_idx on public.
 alter table public.platform_support_admins enable row level security;
 alter table public.support_tickets enable row level security;
 alter table public.support_ticket_messages enable row level security;
+
+-- Table privileges are separate from RLS policies; grant the minimum API access
+-- needed by signed-in users, while RLS below restricts which rows they can access.
+grant select on public.platform_support_admins to authenticated;
+grant select, insert, update on public.support_tickets to authenticated;
+grant select, insert on public.support_ticket_messages to authenticated;
 drop policy if exists "Support admins can read admin registry" on public.platform_support_admins;
 create policy "Support admins can read admin registry" on public.platform_support_admins for select to authenticated using (user_id = auth.uid());
 drop policy if exists "Store members and support admins can read tickets" on public.support_tickets;
