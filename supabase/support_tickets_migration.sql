@@ -68,3 +68,20 @@ create policy "Ticket participants can send messages" on public.support_ticket_m
 -- from Supabase Authentication > Users, then run:
 -- insert into public.platform_support_admins (user_id) values ('PASTE-AUTH-USER-UUID-HERE');
 -- Do not put admin UUIDs or service-role keys in frontend config.js.
+
+-- Keep ticket ordering and activity timestamps current when either side replies.
+create or replace function public.support_ticket_message_touch_ticket()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.support_tickets set updated_at = now() where id = new.ticket_id;
+  return new;
+end;
+$$;
+drop trigger if exists support_ticket_message_touch_ticket on public.support_ticket_messages;
+create trigger support_ticket_message_touch_ticket
+after insert on public.support_ticket_messages
+for each row execute function public.support_ticket_message_touch_ticket();
