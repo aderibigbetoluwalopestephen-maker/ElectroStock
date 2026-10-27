@@ -39,6 +39,7 @@
       <button class="nav-item" data-view="pos"><span><i class="fa-solid fa-cash-register" aria-hidden="true"></i></span> Point of Sale</button>
       <button class="nav-item" data-view="sales"><span><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
       <button class="nav-item" data-view="stock"><span><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i></span> Stock movement</button><button class="nav-item" data-view="attendance"><span><i class="fa-regular fa-clock" aria-hidden="true"></i></span> Attendance</button><button class="nav-item" data-view="team"><span><i class="fa-solid fa-users" aria-hidden="true"></i></span> Staff & Team</button>
+      <button class="nav-item" data-view="support"><span><i class="fa-solid fa-life-ring" aria-hidden="true"></i></span> Support centre</button>
       <button class="nav-item" data-view="settings"><span><i class="fa-solid fa-gear" aria-hidden="true"></i></span> Company settings</button>
       <div class="sidebar-bottom">
         <div class="owner-card"><div class="avatar" id="ownerAvatar">O</div><div><strong id="ownerDisplayName">Store owner</strong><small id="ownerEmail">Private workspace</small></div></div>
@@ -146,7 +147,33 @@
 <section class="panel glass team-panel hidden" id="teamAnnouncementsPanel"><h3>Announcements</h3><form id="announcementForm" class="team-form"><label>Title<input id="announcementTitle" required maxlength="180"></label><label class="span-2">Message<textarea id="announcementBody" rows="3" maxlength="10000" required></textarea></label><button class="btn primary">Publish announcement</button></form><p id="announcementMessage" class="form-message"></p><div id="teamAnnouncementsList"></div></section>
 <section class="panel glass team-panel hidden" id="teamAttendancePanel"><div class="panel-heading"><div><h3>Attendance</h3><p class="muted">Monthly attendance period. Previous records are retained.</p></div><div class="period-filters"><label class="period-label">Attendance month<input id="attendanceMonthFilter" type="month" aria-label="Attendance month"></label><button class="btn secondary" id="refreshAttendanceBtn" type="button">Refresh</button></div></div><div class="attendance-qr-admin" id="attendanceQrAdmin"><div><h4>Staff attendance QR code</h4><p class="muted">Generate and print this store QR code. Staff scan it with their phone camera to open the secure check-in screen.</p></div><div class="attendance-qr-actions"><button class="btn primary" id="generateAttendanceQrBtn" type="button">Generate store QR</button><button class="btn secondary" id="printAttendanceQrBtn" type="button" disabled>Print QR</button></div><p id="attendanceQrMessage" class="form-message" aria-live="polite"></p><div id="attendanceQrPrintArea" class="attendance-qr-print-area hidden"><div class="attendance-qr-print-heading"><strong id="attendanceQrStoreName">ElectroStock</strong><span>STAFF ATTENDANCE</span></div><div id="attendanceQrCode" class="attendance-qr-code"></div><h4>Scan to clock in or clock out</h4><p>Sign in to your ElectroStock staff account, scan this code, confirm your details, and tap the attendance button.</p><small>Keep this code inside your workplace.</small></div></div><div class="attendance-actions"><span id="attendanceStatus" class="muted">Checking shift…</span><span class="muted">Staff must scan the store QR code to record attendance.</span></div><p id="attendanceMessage" class="form-message" aria-live="polite"></p><div class="table-wrap"><table><thead><tr><th>STAFF</th><th>CLOCK IN</th><th>CLOCK OUT</th><th>HOURS</th></tr></thead><tbody id="attendanceTable"></tbody></table></div></section>
 </section>
-<section id="settingsView" class="view hidden">
+<section id="supportView" class="view hidden">
+        <div class="section-intro"><div><p class="eyebrow">CUSTOMER CARE</p><h1>Support centre</h1><p class="muted">Contact the ElectroStock support team, track your requests, and reply when you receive an update.</p></div></div>
+        <div class="support-layout">
+          <section class="panel support-compose">
+            <div class="panel-heading"><div><h3>Submit a support request</h3><p class="muted">Tell us what is happening. Do not include passwords or payment card details.</p></div><span class="support-heading-icon"><i class="fa-solid fa-headset" aria-hidden="true"></i></span></div>
+            <form id="supportTicketForm" class="form-grid">
+              <label class="span-2">Subject *<input id="supportSubject" maxlength="140" required placeholder="Briefly describe the issue"></label>
+              <label>Category<select id="supportCategory"><option value="Account and access">Account and access</option><option value="Inventory and products">Inventory and products</option><option value="Sales and receipts">Sales and receipts</option><option value="Staff and permissions">Staff and permissions</option><option value="Subscription and billing">Subscription and billing</option><option value="Bug or technical issue">Bug or technical issue</option><option value="Other">Other</option></select></label>
+              <label>Priority<select id="supportPriority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+              <label class="span-2">What do you need help with? *<textarea id="supportMessage" rows="5" maxlength="5000" required placeholder="Describe the steps you took and what happened."></textarea></label>
+              <div class="span-2"><button class="btn primary" id="supportSubmitBtn" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Submit request</button><p id="supportFormMessage" class="form-message" aria-live="polite"></p></div>
+            </form>
+            <p class="tiny muted support-privacy-note"><i class="fa-solid fa-lock" aria-hidden="true"></i> Your request is available only to your store team and authorized ElectroStock support staff.</p>
+          </section>
+          <section class="panel support-list-panel">
+            <div class="panel-heading"><div><h3 id="supportListHeading">Your support requests</h3><p class="muted" id="supportListDescription">Review request status and support replies.</p></div><button type="button" class="btn secondary" id="refreshSupportBtn"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button></div>
+            <div id="supportTicketList" class="support-ticket-list"><div class="empty-state"><h3>No requests loaded</h3><p>Support requests will appear here.</p></div></div>
+          </section>
+        </div>
+        <section id="supportConversationPanel" class="panel support-conversation hidden">
+          <div class="panel-heading"><div><p class="eyebrow" id="supportTicketNumber">SUPPORT REQUEST</p><h3 id="supportConversationTitle">Request details</h3><p class="muted" id="supportConversationMeta"></p></div><label id="supportAdminStatusWrap" class="support-status-control hidden">Status<select id="supportAdminStatus"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label></div>
+          <div id="supportConversationMessages" class="support-conversation-messages"></div>
+          <form id="supportReplyForm" class="support-reply-form"><label for="supportReplyText">Reply</label><textarea id="supportReplyText" rows="3" maxlength="5000" required placeholder="Write a reply or add more details…"></textarea><div class="support-reply-actions"><p id="supportReplyMessage" class="form-message" aria-live="polite"></p><button class="btn primary" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send reply</button></div></form>
+        </section>
+        <p class="tiny muted support-footer-note">For your security, ElectroStock support will never ask you to share your password.</p>
+      </section>
+      <section id="settingsView" class="view hidden">
         <div class="section-intro"><div><h1>Company settings</h1><p class="muted">Personalize ElectroStock for your business. Changes apply to your dashboard and receipts.</p></div></div>
         <section class="panel glass settings-panel">
           <div class="settings-preview"><div class="settings-logo-preview" id="settingsLogoPreview">E<span>+</span></div><div><h3 id="settingsPreviewName">ElectroStock</h3><p class="muted">Your business identity</p></div></div>
