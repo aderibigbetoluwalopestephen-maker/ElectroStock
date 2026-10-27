@@ -166,6 +166,7 @@
     teamOwnerId=session.user.id;currentRole="owner";
     const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
     if(membership.data){teamOwnerId=membership.data.owner_id;currentRole=membership.data.role||"sales_rep";}
+    loadSavedNotifications();
     const [pr,mv,sv,cs,sub]=await Promise.all([
       supabase.from("products").select("*").order("created_at",{ascending:false}),
       supabase.from("stock_movements").select("*, products(name)").order("created_at",{ascending:false}).limit(300),
@@ -179,6 +180,7 @@
     companySettings={...defaultSettings,...(cs?.data||{})};
     logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
+    ensureDailySubscriptionReminder();
     renderAll();applyCompanyBranding();populateSettingsForm();
     await loadTeamData();
     await handleAttendanceLink();
@@ -241,19 +243,43 @@
   function updateChatBadge(){const badge=$("chatUnreadBadge"),button=$("floatingChatBtn");if(!badge||!button)return;badge.textContent=chatUnreadCount>99?"99+":String(chatUnreadCount);badge.classList.toggle("hidden",chatUnreadCount===0);button.classList.toggle("has-unread",chatUnreadCount>0);button.setAttribute("aria-label",chatUnreadCount?`Open internal team chat, ${chatUnreadCount} unread messages`:"Open internal team chat");}
   function markChatRead(){chatUnreadCount=0;teamMessages.forEach(m=>seenChatMessageIds.add(m.id));saveSeenChatIds();updateChatBadge();}
   const notificationItems=[];
-  let unreadNotificationCount=0;
+  let unreadNotificationCount=0,notificationUserKey="";
+  function notificationStorageKey(){return "electrostock_notifications_v1_"+(session?.user?.id||"guest");}
+  function saveNotifications(){
+    try{localStorage.setItem(notificationStorageKey(),JSON.stringify(notificationItems.slice(0,50)));}catch{}
+  }
+  function loadSavedNotifications(){
+    const key=notificationStorageKey();
+    if(notificationUserKey===key)return;
+    notificationUserKey=key;notificationItems.length=0;
+    try{
+      const saved=JSON.parse(localStorage.getItem(key)||"[]");
+      if(Array.isArray(saved))saved.slice(0,50).forEach(n=>{if(n&&typeof n.title==="string")notificationItems.push({...n,read:!!n.read});});
+    }catch{}
+    unreadNotificationCount=notificationItems.filter(n=>!n.read).length;
+    renderNotifications();
+  }
   function renderNotifications(){
     const badge=$("notificationBadge"),list=$("notificationList");
     if(!badge||!list)return;
+    unreadNotificationCount=notificationItems.filter(n=>!n.read).length;
     badge.textContent=unreadNotificationCount>99?"99+":String(unreadNotificationCount);
     badge.classList.toggle("hidden",unreadNotificationCount===0);
-    list.innerHTML=notificationItems.length?notificationItems.map((n,i)=>'<button type="button" class="notification-item '+(n.read?"read":"unread")+'" data-notification-index="'+i+'"><span class="notification-item-icon">'+(n.kind==="chat"?'<i class="fa-solid fa-envelope" aria-hidden="true"></i>':'<i class="fa-regular fa-clock" aria-hidden="true"></i>')+'</span><span class="notification-item-copy"><strong>'+esc(n.title)+'</strong><small>'+esc(n.body)+'</small><time>'+esc(n.time)+'</time></span></button>').join(""):'<p class="notification-empty">You’re all caught up.</p>';
+    list.innerHTML=notificationItems.length?notificationItems.map((n,i)=>'<button type="button" class="notification-item '+(n.read?"read":"unread")+'" data-notification-index="'+i+'"><span class="notification-item-icon">'+(n.kind==="chat"?'<i class="fa-solid fa-envelope" aria-hidden="true"></i>':n.kind==="subscription"?'<i class="fa-solid fa-crown" aria-hidden="true"></i>':'<i class="fa-regular fa-clock" aria-hidden="true"></i>')+'</span><span class="notification-item-copy"><strong>'+esc(n.title)+'</strong><small>'+esc(n.body)+'</small><time>'+esc(n.time)+'</time></span></button>').join(""):'<p class="notification-empty">You’re all caught up.</p>';
   }
   function addNotification(title,body,kind="attendance"){
-    notificationItems.unshift({title,body,kind,time:new Date().toLocaleTimeString("en-NG",{hour:"2-digit",minute:"2-digit"}),read:false});
+    notificationItems.unshift({title,body,kind,time:new Date().toLocaleTimeString("en-NG",{hour:"2-digit",minute:"2-digit"}),date:new Date().toISOString(),read:false});
     if(notificationItems.length>50)notificationItems.length=50;
     unreadNotificationCount=notificationItems.filter(n=>!n.read).length;
-    renderNotifications();
+    saveNotifications();renderNotifications();
+  }
+  function ensureDailySubscriptionReminder(){
+    if(localMode||currentRole!=="owner"||hasActiveLogoSubscription()||logoSubscription.error||!session?.user?.id)return;
+    const today=new Date().toLocaleDateString("en-CA");
+    const key="electrostock_subscription_reminder_"+session.user.id;
+    try{if(localStorage.getItem(key)===today)return;}catch{}
+    addNotification("Subscription reminder","Your logo customization subscription is not active. Subscribe for ₦1,500/month to use your own business logo on ElectroStock and receipts.","subscription");
+    try{localStorage.setItem(key,today);}catch{}
   }
   function closeNotificationPanel(){
     $("notificationPanel")?.classList.add("hidden");
@@ -826,14 +852,14 @@
     const panel=$("notificationPanel"),willOpen=panel.classList.contains("hidden");
     panel.classList.toggle("hidden",!willOpen);
     $("enableNotificationsBtn").setAttribute("aria-expanded",String(willOpen));
-    if(willOpen){notificationItems.forEach(n=>n.read=true);unreadNotificationCount=0;renderNotifications();}
+    if(willOpen){notificationItems.forEach(n=>n.read=true);unreadNotificationCount=0;saveNotifications();renderNotifications();}
   });
   $("allowBrowserNotificationsBtn").addEventListener("click",requestBrowserNotifications);
-  $("clearNotificationsBtn").addEventListener("click",()=>{notificationItems.length=0;unreadNotificationCount=0;renderNotifications();});
+  $("clearNotificationsBtn").addEventListener("click",()=>{notificationItems.length=0;unreadNotificationCount=0;saveNotifications();renderNotifications();});
   $("notificationList").addEventListener("click",e=>{
     const item=e.target.closest("[data-notification-index]");if(!item)return;
     const notification=notificationItems[Number(item.dataset.notificationIndex)];
-    if(notification){notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;renderNotifications();}
+    if(notification){notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;saveNotifications();renderNotifications();}
   });
   document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
 
