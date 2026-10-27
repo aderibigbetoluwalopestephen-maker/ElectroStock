@@ -300,12 +300,12 @@
   }
   function printAttendanceQr(){if(!attendanceQrToken){$("attendanceQrMessage").textContent="Generate the store QR code first.";return;}window.print();}
   function closeAttendanceScan(){const modal=$("attendanceScanModal");modal.classList.add("hidden");attendanceActionInProgress=false;modal.dataset.completed="false";modal.dataset.loadedToken="";$("confirmAttendanceBtn").disabled=false;$("cancelAttendanceScanBtn").textContent="Cancel";}
-  async function handleAttendanceLink(){
-    if(!attendanceTokenFromUrl||!session?.user?.id||localMode||!supabase)return;
-    const modal=$("attendanceScanModal");if(modal.dataset.loadedToken===attendanceTokenFromUrl)return;modal.dataset.loadedToken=attendanceTokenFromUrl;
+  async function handleAttendanceLink(token=attendanceTokenFromUrl){
+    if(!token||!session?.user?.id||localMode||!supabase){if(localMode)$("attendanceScannerMessage").textContent="Secure attendance requires a connected Supabase account. Please sign in to your store account.";return;}
+    const modal=$("attendanceScanModal");if(modal.dataset.loadedToken===token)return;modal.dataset.loadedToken=token;
     $("attendanceScanMessage").textContent="Verifying your staff account and store QR code…";$("confirmAttendanceBtn").disabled=true;modal.classList.remove("hidden");
     try{
-      const {data:qr,error:qrError}=await supabase.from("store_attendance_qr").select("owner_id,token").eq("token",attendanceTokenFromUrl).maybeSingle();
+      const {data:qr,error:qrError}=await supabase.from("store_attendance_qr").select("owner_id,token").eq("token",token).maybeSingle();
       if(qrError||!qr)throw new Error("This attendance QR code is invalid or does not belong to a store you can access.");
       const ownerId=qr.owner_id,isOwner=session.user.id===ownerId;
       const membershipResult=isOwner?{data:null,error:null}:await supabase.from("store_members").select("user_id,owner_id,display_name,email,role,active").eq("user_id",session.user.id).eq("owner_id",ownerId).maybeSingle();
@@ -343,7 +343,7 @@
     $("teamAnnouncementsList").innerHTML=teamAnnouncements.length?teamAnnouncements.map(n=>'<article class="team-announcement"><h4>'+esc(n.title)+'</h4><small>'+teamDate(n.created_at)+'</small><p>'+esc(n.body)+"</p></article>").join(""):'<p class="muted">No announcements yet.</p>';
     const attendanceMonth=$("attendanceMonthFilter")?.value||currentMonthKey();const periodAttendance=attendanceRows.filter(r=>monthMatches(r.clock_in,attendanceMonth));$("attendanceTable").innerHTML=periodAttendance.length?periodAttendance.map(r=>{const m=teamMembers.find(x=>x.user_id===r.user_id);const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+esc(m?.display_name||(r.user_id===teamOwnerId?"Store owner":"Staff member"))+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records yet.</td></tr>';
     const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);
-    $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";
+    $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";renderMyAttendance();
     $("attendanceQrAdmin").classList.toggle("hidden",currentRole!=="owner");
     $("inviteStaffForm").classList.toggle("hidden",!canManageStaff());
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
@@ -399,7 +399,42 @@
   $("closeAttendanceScanBtn").addEventListener("click",closeAttendanceScan);
   $("cancelAttendanceScanBtn").addEventListener("click",closeAttendanceScan);
 
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",team:"Staff & Team",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
+  let attendanceScanner=null;
+  async function startAttendanceScanner(){
+    const message=$("attendanceScannerMessage"),start=$("startAttendanceScanBtn"),stop=$("stopAttendanceScanBtn"),target=$("attendanceScanner");
+    if(localMode||!supabase||!session?.user?.id){message.textContent="Please sign in to your store account with Supabase enabled before scanning attendance.";return;}
+    if(!window.Html5Qrcode){message.textContent="The QR scanner could not load. Refresh the page and try again.";return;}
+    start.disabled=true;message.textContent="Starting camera…";target.classList.remove("hidden");
+    try{
+      if(!attendanceScanner)attendanceScanner=new Html5Qrcode("attendanceScanner");
+      await attendanceScanner.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}},async decodedText=>{
+        message.textContent="QR code detected. Verifying…";stopAttendanceScanner();
+        let token=decodedText;
+        try{const url=new URL(decodedText);token=url.searchParams.get("attendance")||decodedText;}catch{}
+        await handleAttendanceLink(token);
+      },()=>{});
+      message.textContent="Point your camera at the store's printed attendance QR code.";
+      stop.classList.remove("hidden");start.textContent="Camera is on";
+    }catch(error){message.textContent=error?.message||"Could not start the camera. Allow camera permission and use the site over HTTPS.";target.classList.add("hidden");}
+    finally{start.disabled=false;}
+  }
+  async function stopAttendanceScanner(){
+    const target=$("attendanceScanner"),stop=$("stopAttendanceScanBtn"),start=$("startAttendanceScanBtn");
+    if(attendanceScanner){try{if(attendanceScanner.isScanning)await attendanceScanner.stop();}catch{}try{await attendanceScanner.clear();}catch{}attendanceScanner=null;}
+    target.classList.add("hidden");stop.classList.add("hidden");start.textContent="Scan QR Code";
+  }
+  function renderMyAttendance(){
+    const own=attendanceRows.filter(r=>r.user_id===session?.user?.id).sort((a,b)=>new Date(b.clock_in)-new Date(a.clock_in));
+    const open=own.find(r=>!r.clock_out);
+    $("myAttendanceStatus").textContent=open?"You are clocked in":"You are clocked out";
+    $("myAttendanceLastTime").textContent=open?"Clocked in at "+teamDate(open.clock_in):(own[0]?"Last shift: "+teamDate(own[0].clock_in):"No attendance record yet.");
+    const month=currentMonthKey(),rows=own.filter(r=>monthMatches(r.clock_in,month));
+    $("myAttendanceTable").innerHTML=rows.length?rows.map(r=>{const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+teamDate(r.clock_in).split(",")[0]+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records for this month.</td></tr>';
+  }
+  $("startAttendanceScanBtn").addEventListener("click",startAttendanceScanner);
+  $("stopAttendanceScanBtn").addEventListener("click",stopAttendanceScanner);
+  $("refreshMyAttendanceBtn").addEventListener("click",async()=>{await refreshTeam();renderMyAttendance();});
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="attendance"){loadTeamData();}if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
