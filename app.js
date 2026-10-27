@@ -8,6 +8,7 @@
   let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
   let logoSubscription = {active:false, expires_at:null, error:null};
   let teamDataInitialized=false, notificationRefreshInProgress=false;
+  let supportTickets=[], supportMessages=[], activeSupportTicketId=null, isSupportAdmin=false;
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
@@ -544,7 +545,81 @@
   $("startAttendanceScanBtn").addEventListener("click",startAttendanceScanner);
   $("stopAttendanceScanBtn").addEventListener("click",stopAttendanceScanner);
   $("refreshMyAttendanceBtn").addEventListener("click",async()=>{await refreshTeam();renderMyAttendance();});
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="attendance"){loadTeamData();}if(view==="team"){showTeamTab("staff");loadTeamData();}}
+  async function loadSupportData(){
+    if(!session?.user?.id || localMode){
+      $("supportTicketList").innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-cloud" aria-hidden="true"></i></div><h3>Secure support needs an account</h3><p>Sign in with your Supabase-connected account to submit and track support requests.</p></div>';
+      $("supportFormMessage").textContent=localMode?"Support tickets require the connected Supabase workspace; demo mode does not send or save requests.":"";
+      return;
+    }
+    $("supportTicketList").innerHTML='<p class="muted support-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading support requests…</p>';
+    const admin=await supabase.from("platform_support_admins").select("user_id").eq("user_id",session.user.id).maybeSingle();
+    isSupportAdmin=!admin.error&&!!admin.data;
+    $("supportListHeading").textContent=isSupportAdmin?"All customer support requests":"Your support requests";
+    $("supportListDescription").textContent=isSupportAdmin?"Review customer cases and reply from the support team.":"Review request status and support replies.";
+    const query=supabase.from("support_tickets").select("id,store_owner_id,created_by,subject,category,priority,status,created_at,updated_at").order("updated_at",{ascending:false}).limit(100);
+    const result=isSupportAdmin?await query:await query.eq("store_owner_id",teamOwnerId||session.user.id);
+    if(result.error){
+      supportTickets=[];
+      $("supportTicketList").innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-database" aria-hidden="true"></i></div><h3>Support setup required</h3><p>Run supabase/support_tickets_migration.sql in the Supabase SQL Editor, then refresh this page.</p><p class="tiny">'+esc(result.error.message)+'</p></div>';
+      return;
+    }
+    supportTickets=result.data||[];renderSupportTickets();
+    if(activeSupportTicketId&&!supportTickets.some(t=>t.id===activeSupportTicketId)){activeSupportTicketId=null;$("supportConversationPanel").classList.add("hidden");}
+    if(activeSupportTicketId)await openSupportTicket(activeSupportTicketId,false);
+  }
+  function supportStatusLabel(status){return ({open:"Open",in_progress:"In progress",resolved:"Resolved"}[status]||status||"Open");}
+  function renderSupportTickets(){
+    const host=$("supportTicketList");
+    if(!supportTickets.length){host.innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-regular fa-comments" aria-hidden="true"></i></div><h3>No support requests yet</h3><p>Submit a request using the form. Your updates will appear here.</p></div>';return;}
+    host.innerHTML=supportTickets.map(t=>'<button type="button" class="support-ticket-row '+(t.id===activeSupportTicketId?'selected':'')+'" data-support-ticket="'+esc(t.id)+'"><span class="support-ticket-main"><strong>'+esc(t.subject)+'</strong><small>'+esc(t.category)+' · '+new Date(t.updated_at||t.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"})+'</small></span><span class="support-ticket-meta"><span class="support-status status-'+esc(t.status)+'">'+esc(supportStatusLabel(t.status))+'</span><small class="support-priority priority-'+esc(t.priority)+'">'+esc(t.priority||"normal")+'</small></span></button>').join("");
+    host.querySelectorAll("[data-support-ticket]").forEach(b=>b.addEventListener("click",()=>openSupportTicket(b.dataset.supportTicket)));
+  }
+  async function openSupportTicket(id,scroll=true){
+    const ticket=supportTickets.find(t=>t.id===id);if(!ticket)return;
+    activeSupportTicketId=id;renderSupportTickets();$("supportConversationPanel").classList.remove("hidden");
+    $("supportTicketNumber").textContent="REQUEST · "+id.slice(0,8).toUpperCase();
+    $("supportConversationTitle").textContent=ticket.subject;
+    $("supportConversationMeta").textContent=ticket.category+" · "+supportStatusLabel(ticket.status)+" · Created "+new Date(ticket.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});
+    $("supportAdminStatusWrap").classList.toggle("hidden",!isSupportAdmin);$("supportAdminStatus").value=ticket.status||"open";$("supportReplyMessage").textContent="";
+    const result=await supabase.from("support_ticket_messages").select("id,ticket_id,sender_id,message,created_at").eq("ticket_id",id).order("created_at",{ascending:true});
+    const host=$("supportConversationMessages");
+    if(result.error){host.innerHTML='<p class="form-message">Could not load replies: '+esc(result.error.message)+'</p>';return;}
+    supportMessages=result.data||[];
+    host.innerHTML=supportMessages.map(m=>'<article class="support-message '+(m.sender_id===session.user.id?'mine':'')+'"><div class="support-message-head"><strong>'+((m.sender_id===session.user.id)?"You":(isSupportAdmin?"Customer / store team":"ElectroStock support"))+'</strong><time>'+new Date(m.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"})+'</time></div><p>'+esc(m.message).replace(/\n/g,"<br>")+'</p></article>').join("")||'<p class="muted">No replies yet. Send a message below to continue.</p>';
+    if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  $("supportTicketForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    if(localMode||!session?.user?.id){$("supportFormMessage").textContent="Sign in to your connected ElectroStock account to submit a support request.";return;}
+    const subject=$("supportSubject").value.trim(),message=$("supportMessage").value.trim();if(!subject||!message)return;
+    const btn=$("supportSubmitBtn");btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Submitting…';$("supportFormMessage").textContent="";
+    try{
+      const created=await supabase.from("support_tickets").insert({store_owner_id:teamOwnerId||session.user.id,created_by:session.user.id,subject,category:$("supportCategory").value,priority:$("supportPriority").value,status:"open"}).select("id").single();
+      if(created.error)throw created.error;
+      const reply=await supabase.from("support_ticket_messages").insert({ticket_id:created.data.id,sender_id:session.user.id,message});
+      if(reply.error){$("supportFormMessage").textContent="Ticket was created, but the first message could not be saved: "+reply.error.message;await loadSupportData();return;}
+      $("supportTicketForm").reset();$("supportFormMessage").textContent="Support request submitted. Keep the request number shown in the conversation for reference.";
+      await loadSupportData();await openSupportTicket(created.data.id);
+    }catch(err){$("supportFormMessage").textContent=err?.message||"The support request could not be submitted. Check the support migration and try again.";}
+    finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Submit request';}
+  });
+  $("supportReplyForm").addEventListener("submit",async e=>{
+    e.preventDefault();if(!activeSupportTicketId||!session?.user?.id)return;
+    const message=$("supportReplyText").value.trim();if(!message)return;
+    const btn=$("supportReplyForm").querySelector('button[type="submit"]');btn.disabled=true;$("supportReplyMessage").textContent="";
+    const result=await supabase.from("support_ticket_messages").insert({ticket_id:activeSupportTicketId,sender_id:session.user.id,message});
+    if(result.error){$("supportReplyMessage").textContent=result.error.message;btn.disabled=false;return;}
+    $("supportReplyText").value="";$("supportReplyMessage").textContent="Reply sent.";
+    await loadSupportData();await openSupportTicket(activeSupportTicketId,false);btn.disabled=false;
+  });
+  $("supportAdminStatus").addEventListener("change",async()=>{
+    if(!isSupportAdmin||!activeSupportTicketId)return;
+    const result=await supabase.from("support_tickets").update({status:$("supportAdminStatus").value,updated_at:new Date().toISOString()}).eq("id",activeSupportTicketId);
+    if(result.error){toast("Ticket status could not be updated: "+result.error.message);return;}
+    await loadSupportData();await openSupportTicket(activeSupportTicketId,false);toast("Support request status updated.");
+  });
+  $("refreshSupportBtn").addEventListener("click",loadSupportData);
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="support")loadSupportData();if(view==="settings")populateSettingsForm();if(view==="attendance"){loadTeamData();}if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
