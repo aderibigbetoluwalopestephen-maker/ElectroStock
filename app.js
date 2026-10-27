@@ -7,6 +7,7 @@
   const attendanceTokenFromUrl = new URLSearchParams(window.location.search).get("attendance");
   let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
   let logoSubscription = {active:false, expires_at:null, error:null};
+  let teamDataInitialized=false, notificationRefreshInProgress=false;
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
@@ -159,8 +160,8 @@
       btn.disabled=false;btn.textContent="Save business and continue";
     }
   });
-  $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();chatSeenInitialized=false;updateChatBadge();showAuth();setAuthMode("login");});
-  async function loadCloud(){
+  $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();chatSeenInitialized=false;teamDataInitialized=false;updateChatBadge();showAuth();setAuthMode("login");});
+  async function loadCloud(options={}){
     if(localMode||!session?.user?.id)return;
     teamOwnerId=session.user.id;currentRole="owner";
     const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
@@ -182,7 +183,7 @@
     await loadTeamData();
     await handleAttendanceLink();
     if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
-    if(!cs?.data && session?.user?.id && currentRole==="owner"){openOnboarding();}
+    if(!options.silent && !cs?.data && session?.user?.id && currentRole==="owner"){openOnboarding();}
   }
   async function saveProduct(data,id){
     if(!canManageProducts())return {error:{message:"Sales reps cannot add or edit store products. Ask the owner or a manager."}};
@@ -315,7 +316,37 @@
       supabase.from("store_announcements").select("*").eq("owner_id",teamOwnerId).order("created_at",{ascending:false}).limit(100),
       supabase.from("staff_attendance").select("*").eq("owner_id",teamOwnerId).order("clock_in",{ascending:false}).limit(300)
     ]);
-    teamMembers=r[0].data||[];teamMessages=r[1].data||[];teamAnnouncements=r[2].data||[];attendanceRows=r[3].data||[];
+    const incomingMessages=r[1].data||[], incomingAttendance=r[3].data||[];
+    if(teamDataInitialized){
+      const previousMessageIds=new Set(teamMessages.map(m=>m.id));
+      incomingMessages.forEach(message=>{
+        if(!message?.id||previousMessageIds.has(message.id)||message.sender_id===session?.user?.id)return;
+        const sender=(teamMembers.find(m=>m.user_id===message.sender_id)||{}).display_name||(message.sender_id===teamOwnerId?"Store owner":"Team member");
+        const body=String(message.message||"New message");
+        if(!seenChatMessageIds.has(message.id)){
+          seenChatMessageIds.add(message.id);chatUnreadCount++;
+          addNotification("New team message · "+sender,body,"chat");
+          sendBrowserNotification("New team message · "+sender,body.slice(0,120),"electrostock-message-"+message.id);
+        }
+      });
+      const previousAttendanceById=new Map(attendanceRows.map(row=>[row.id,row]));
+      incomingAttendance.forEach(row=>{
+        const previous=previousAttendanceById.get(row.id);
+        if(!row?.id||row.user_id===session?.user?.id)return;
+        const staff=(teamMembers.find(m=>m.user_id===row.user_id)||{}).display_name||"A team member";
+        if(!previous){
+          const body=staff+" clocked in at "+teamDate(row.clock_in)+".";
+          addNotification("Staff clock-in",body,"attendance");
+          sendBrowserNotification("Staff clock-in",body,"electrostock-attendance-in-"+row.id);
+        }else if(row.clock_out&&!previous.clock_out){
+          const body=staff+" clocked out at "+teamDate(row.clock_out)+".";
+          addNotification("Staff clock-out",body,"attendance");
+          sendBrowserNotification("Staff clock-out",body,"electrostock-attendance-out-"+row.id);
+        }
+      });
+    }
+    teamMembers=r[0].data||[];teamMessages=incomingMessages;teamAnnouncements=r[2].data||[];attendanceRows=incomingAttendance;
+    teamDataInitialized=true;
     loadSeenChatIds();
     const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
     teamMessages.forEach(m=>{if(!seenChatMessageIds.has(m.id)&&m.sender_id!==session?.user?.id&&!chatOpen)chatUnreadCount++;seenChatMessageIds.add(m.id);});
@@ -847,5 +878,16 @@
     else{const {error}=await supabase.from("products").update({quantity:updated.quantity}).eq("id",id);if(error){$("stockMessage").textContent=error.message;return;}const {error:me}=await supabase.from("stock_movements").insert({owner_id:session.user.id,product_id:id,movement_type:type,quantity_change:delta,note:note||null});if(me){toast("Quantity updated, but movement log failed: "+me.message);}await loadCloud();}
     $("stockForm").reset();$("customerFieldWrap").classList.add("hidden");renderAll();$("stockMessage").textContent="Stock movement saved.";toast("Stock updated successfully.");
   });
+
+  async function refreshForLiveUpdates(){
+    if(notificationRefreshInProgress||document.hidden||!session?.user?.id||localMode)return;
+    notificationRefreshInProgress=true;
+    try{await loadCloud({silent:true});}
+    catch(error){console.warn("Background refresh failed:",error);}
+    finally{notificationRefreshInProgress=false;}
+  }
+  window.setInterval(refreshForLiveUpdates,30000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshForLiveUpdates();});
+
   init();
 })();
