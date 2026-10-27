@@ -171,3 +171,5 @@
 .notification-empty{padding:20px 16px;margin:0;text-align:center;color:var(--muted);font-size:12px}
 .notification-enable{width:100%;padding:12px;border:0;border-top:1px solid rgba(185,205,235,.12);background:rgba(255,255,255,.035);color:#c4bdff;font-weight:700;font-size:12px}
 @media(max-width:600px){.notification-panel{position:fixed;top:72px;right:12px;width:min(360px,calc(100vw - 24px))}}
+
+.staff-plan-limit{padding:10px 12px;margin:12px 0;border-radius:10px;background:rgba(139,124,255,.09);font-size:13px;line-height:1.5}
