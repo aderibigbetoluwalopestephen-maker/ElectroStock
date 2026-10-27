@@ -4,6 +4,8 @@
   const configured = config.supabaseUrl && config.supabaseAnonKey &&
     !config.supabaseUrl.includes("YOUR_") && !config.supabaseAnonKey.includes("YOUR_");
   let supabase = null, session = null, products = [], movements = [], sales = [], posCart = [], localMode = !configured;
+  const attendanceTokenFromUrl = new URLSearchParams(window.location.search).get("attendance");
+  let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
   let logoSubscription = {active:false, expires_at:null, error:null};
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
@@ -178,6 +180,7 @@
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
     renderAll();applyCompanyBranding();populateSettingsForm();
     await loadTeamData();
+    await handleAttendanceLink();
     if(cs?.error){console.error("Company settings could not be checked:",cs.error.message);}
     if(!cs?.data && session?.user?.id && currentRole==="owner"){openOnboarding();}
   }
@@ -271,6 +274,67 @@
     const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
     teamMessages.forEach(m=>{if(!seenChatMessageIds.has(m.id)&&m.sender_id!==session?.user?.id&&!chatOpen)chatUnreadCount++;seenChatMessageIds.add(m.id);});
     saveSeenChatIds();updateChatBadge();startTeamMessageNotifications();renderTeam();
+    if(currentRole==="owner")await loadAttendanceQr();
+  }
+  async function generateAttendanceQr(){
+    const message=$("attendanceQrMessage"),button=$("generateAttendanceQrBtn");
+    if(currentRole!=="owner"){message.textContent="Only the store owner can generate or replace the attendance QR code.";return;}
+    if(localMode||!supabase){message.textContent="Connect Supabase to create a secure store QR code.";return;}
+    button.disabled=true;button.textContent="Generating…";message.textContent="";
+    try{const token=crypto.randomUUID();const {data,error}=await supabase.from("store_attendance_qr").upsert({owner_id:teamOwnerId||session.user.id,token,updated_at:new Date().toISOString()},{onConflict:"owner_id"}).select("owner_id,token").single();if(error)throw error;attendanceQrToken=data.token;attendanceQrStoreId=data.owner_id;renderAttendanceQr();message.textContent="Store attendance QR code generated. Print it and place it at the shop entrance.";}
+    catch(error){message.textContent=error?.message||"Could not generate the QR code. Run supabase/attendance_qr_migration.sql in Supabase first.";}
+    finally{button.disabled=false;button.textContent="Generate store QR";}
+  }
+  function renderAttendanceQr(){
+    const area=$("attendanceQrPrintArea"),target=$("attendanceQrCode");
+    if(!attendanceQrToken||!window.QRCode){$("attendanceQrMessage").textContent="The QR code library did not load. Refresh the page and try again.";return;}
+    target.innerHTML="";const scanUrl=window.location.origin+window.location.pathname+"?attendance="+encodeURIComponent(attendanceQrToken);
+    new QRCode(target,{text:scanUrl,width:220,height:220,colorDark:"#101827",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H});
+    $("attendanceQrStoreName").textContent=companySettings.company_name||"ElectroStock";area.classList.remove("hidden");$("printAttendanceQrBtn").disabled=false;
+  }
+  async function loadAttendanceQr(){
+    if(localMode||!supabase||currentRole!=="owner")return;
+    const {data,error}=await supabase.from("store_attendance_qr").select("owner_id,token").eq("owner_id",teamOwnerId||session.user.id).maybeSingle();
+    if(error){$("attendanceQrMessage").textContent="Run supabase/attendance_qr_migration.sql in Supabase SQL Editor to enable attendance QR codes.";return;}
+    if(data){attendanceQrToken=data.token;attendanceQrStoreId=data.owner_id;renderAttendanceQr();}
+  }
+  function printAttendanceQr(){if(!attendanceQrToken){$("attendanceQrMessage").textContent="Generate the store QR code first.";return;}window.print();}
+  function closeAttendanceScan(){const modal=$("attendanceScanModal");modal.classList.add("hidden");attendanceActionInProgress=false;modal.dataset.completed="false";modal.dataset.loadedToken="";$("confirmAttendanceBtn").disabled=false;$("cancelAttendanceScanBtn").textContent="Cancel";}
+  async function handleAttendanceLink(){
+    if(!attendanceTokenFromUrl||!session?.user?.id||localMode||!supabase)return;
+    const modal=$("attendanceScanModal");if(modal.dataset.loadedToken===attendanceTokenFromUrl)return;modal.dataset.loadedToken=attendanceTokenFromUrl;
+    $("attendanceScanMessage").textContent="Verifying your staff account and store QR code…";$("confirmAttendanceBtn").disabled=true;modal.classList.remove("hidden");
+    try{
+      const {data:qr,error:qrError}=await supabase.from("store_attendance_qr").select("owner_id,token").eq("token",attendanceTokenFromUrl).maybeSingle();
+      if(qrError||!qr)throw new Error("This attendance QR code is invalid or does not belong to a store you can access.");
+      const ownerId=qr.owner_id,isOwner=session.user.id===ownerId;
+      const membershipResult=isOwner?{data:null,error:null}:await supabase.from("store_members").select("user_id,owner_id,display_name,email,role,active").eq("user_id",session.user.id).eq("owner_id",ownerId).maybeSingle();
+      const member=membershipResult.data;
+      if(!isOwner&&(membershipResult.error||!member||member.active===false))throw new Error("Your account is not an active member of this store. Ask the Owner to check your staff account.");
+      attendanceQrStoreId=ownerId;attendanceQrToken=qr.token;
+      $("attendanceScanName").textContent=isOwner?(session.user.user_metadata?.full_name||session.user.email||"Store owner"):(member.display_name||session.user.user_metadata?.full_name||"Staff member");
+      $("attendanceScanRole").textContent=isOwner?"Owner":member.role==="manager"?"Manager":"Sales Rep";$("attendanceScanEmail").textContent=session.user.email||"—";
+      $("attendanceScanStore").textContent=companySettings.company_name||"Your store";$("attendanceScanBadge").classList.remove("success");
+      $("attendanceScanTitle").textContent="Confirm your attendance";$("attendanceScanIntro").textContent="Your staff account has been verified. Confirm the action below.";$("attendanceScanMessage").textContent="";
+      const {data:openShift,error:shiftError}=await supabase.from("staff_attendance").select("id,clock_in,clock_out").eq("owner_id",ownerId).eq("user_id",session.user.id).is("clock_out",null).maybeSingle();if(shiftError)throw shiftError;
+      modal.dataset.action=openShift?"out":"in";modal.dataset.shiftId=openShift?.id||"";modal.dataset.completed="false";
+      $("confirmAttendanceBtn").textContent=openShift?"✓ Confirm check-out":"✓ Confirm check-in";$("attendanceScanTime").textContent=openShift?"Checked in at "+teamDate(openShift.clock_in):"Ready to check in · "+new Date().toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});
+      $("confirmAttendanceBtn").disabled=false;window.history.replaceState({},document.title,window.location.pathname);
+    }catch(error){$("attendanceScanTitle").textContent="Attendance verification failed";$("attendanceScanIntro").textContent="We could not verify this scan.";$("attendanceScanMessage").textContent=error?.message||"Ask the Owner to generate a new attendance QR code.";$("confirmAttendanceBtn").textContent="Unable to continue";$("confirmAttendanceBtn").disabled=true;$("attendanceScanBadge").classList.remove("success");}
+  }
+  async function confirmAttendanceAction(){
+    const modal=$("attendanceScanModal"),button=$("confirmAttendanceBtn"),message=$("attendanceScanMessage");
+    if(modal.dataset.completed==="true"){closeAttendanceScan();return;}if(attendanceActionInProgress||!attendanceQrStoreId||!session?.user?.id)return;
+    const action=modal.dataset.action;attendanceActionInProgress=true;button.disabled=true;button.textContent="Processing securely…";message.textContent="";
+    try{
+      let result;if(action==="in"){result=await supabase.from("staff_attendance").insert({owner_id:attendanceQrStoreId,user_id:session.user.id}).select("id,clock_in").single();}
+      else{const shiftId=modal.dataset.shiftId;if(!shiftId)throw new Error("No active check-in was found. Scan the store QR code again.");result=await supabase.from("staff_attendance").update({clock_out:new Date().toISOString()}).eq("id",shiftId).eq("user_id",session.user.id).is("clock_out",null).select("id,clock_out").maybeSingle();if(!result.error&&!result.data)throw new Error("This shift was already checked out. Scan the store QR code again.");}
+      if(result.error)throw result.error;const stamp=action==="in"?result.data.clock_in:result.data.clock_out;
+      $("attendanceScanBadge").classList.add("success");$("attendanceScanTitle").textContent=action==="in"?"Check-in Successful":"Check-out Successful";$("attendanceScanIntro").textContent=action==="in"?"Your attendance has been recorded successfully.":"Your check-out has been recorded successfully.";
+      $("attendanceScanMessage").textContent="✓ Saved to the store attendance records.";$("attendanceScanTime").textContent=new Date(stamp).toLocaleString("en-NG",{dateStyle:"full",timeStyle:"short"});
+      button.textContent="✓ Done";button.disabled=false;modal.dataset.completed="true";$("cancelAttendanceScanBtn").textContent="Close";
+      $("attendanceMessage").textContent=action==="in"?"Check-in recorded successfully.":"Check-out recorded successfully.";await loadTeamData();toast(action==="in"?"Check-in successful.":"Check-out successful.");
+    }catch(error){message.textContent=error?.message||"Could not save attendance. Please try again.";button.disabled=false;button.textContent=action==="in"?"✓ Confirm check-in":"✓ Confirm check-out";attendanceActionInProgress=false;}
   }
   function renderTeam(){
     $("teamStaffTable").innerHTML=teamMembers.length?teamMembers.map(m=>"<tr><td>"+esc(m.display_name)+"</td><td>"+esc(m.email)+"</td><td>"+(m.role==="manager"?"Manager":"Sales Rep")+"</td><td>"+(m.active?"Active":"Disabled")+"</td><td>"+(canManageStaff()?'<button class="mini-btn" data-member-toggle="'+m.id+'">'+(m.active?"Disable":"Enable")+"</button>":"—")+"</td></tr>").join(""):'<tr><td colspan="5">No staff members yet.</td></tr>';
@@ -280,7 +344,7 @@
     const attendanceMonth=$("attendanceMonthFilter")?.value||currentMonthKey();const periodAttendance=attendanceRows.filter(r=>monthMatches(r.clock_in,attendanceMonth));$("attendanceTable").innerHTML=periodAttendance.length?periodAttendance.map(r=>{const m=teamMembers.find(x=>x.user_id===r.user_id);const hours=r.clock_out?((new Date(r.clock_out)-new Date(r.clock_in))/3600000).toFixed(2):"In progress";return "<tr><td>"+esc(m?.display_name||(r.user_id===teamOwnerId?"Store owner":"Staff member"))+"</td><td>"+teamDate(r.clock_in)+"</td><td>"+teamDate(r.clock_out)+"</td><td>"+hours+"</td></tr>";}).join(""):'<tr><td colspan="4">No attendance records yet.</td></tr>';
     const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);
     $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";
-    $("clockInBtn").disabled=!!open;$("clockOutBtn").disabled=!open;
+    $("attendanceQrAdmin").classList.toggle("hidden",currentRole!=="owner");
     $("inviteStaffForm").classList.toggle("hidden",!canManageStaff());
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
   }
@@ -329,8 +393,11 @@
   })();
   $("announcementForm").addEventListener("submit",async e=>{e.preventDefault();const z=await supabase.from("store_announcements").insert({owner_id:teamOwnerId||session.user.id,author_id:session.user.id,title:$("announcementTitle").value.trim(),body:$("announcementBody").value.trim()});if(z.error){$("announcementMessage").textContent=z.error.message;return;}$("announcementForm").reset();$("announcementMessage").textContent="Announcement published.";await loadTeamData();});
   $("refreshAttendanceBtn").addEventListener("click",refreshTeam);
-  $("clockInBtn").addEventListener("click",async()=>{const z=await supabase.from("staff_attendance").insert({owner_id:teamOwnerId||session.user.id,user_id:session.user.id});if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked in.";await loadTeamData();});
-  $("clockOutBtn").addEventListener("click",async()=>{const open=attendanceRows.find(r=>r.user_id===session?.user?.id&&!r.clock_out);if(!open)return;const z=await supabase.from("staff_attendance").update({clock_out:new Date().toISOString()}).eq("id",open.id);if(z.error){$("attendanceMessage").textContent=z.error.message;return;}$("attendanceMessage").textContent="Clocked out.";await loadTeamData();});
+  $("generateAttendanceQrBtn").addEventListener("click",generateAttendanceQr);
+  $("printAttendanceQrBtn").addEventListener("click",printAttendanceQr);
+  $("confirmAttendanceBtn").addEventListener("click",confirmAttendanceAction);
+  $("closeAttendanceScanBtn").addEventListener("click",closeAttendanceScan);
+  $("cancelAttendanceScanBtn").addEventListener("click",closeAttendanceScan);
 
   function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",team:"Staff & Team",settings:"Company settings"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
