@@ -754,7 +754,7 @@
   function readAppearance(){
     try {
       const saved=JSON.parse(localStorage.getItem(appearanceStorageKey)||"{}");
-      const accent=/^#[0-9a-f]{6}$/i.test(saved.accent||"")?saved.accent:"#8b7cff";
+      const accent="#8b7cff";
       return {mode:saved.mode==="light"?"light":"dark",accent};
     } catch { return {...defaultAppearance}; }
   }
@@ -763,10 +763,6 @@
     document.documentElement.dataset.theme=mode;
     document.documentElement.style.setProperty("--purple",appearance.accent);
     document.documentElement.style.setProperty("--cyan",appearance.accent);
-    const picker=$("themeAccentColor");
-    if(picker&&picker.value!==appearance.accent)picker.value=appearance.accent;
-    const accentHex=$("themeAccentHex");
-    if(accentHex)accentHex.textContent=appearance.accent.toUpperCase();
     const toggle=$("themeToggleBtn");
     if(toggle){
       const isLight=mode==="light";
@@ -785,7 +781,6 @@
   document.documentElement.style.setProperty("--purple",appearance.accent);
   document.documentElement.style.setProperty("--cyan",appearance.accent);
   $("themeToggleBtn")?.addEventListener("click",()=>setAppearanceMode(appearance.mode==="dark"?"light":"dark"));
-  $("themeAccentColor")?.addEventListener("input",e=>{appearance.accent=e.target.value;applyAppearance(true);});
   applyAppearance(false);
   function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
   function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
