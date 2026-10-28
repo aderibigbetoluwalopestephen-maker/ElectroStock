@@ -765,6 +765,8 @@
     document.documentElement.style.setProperty("--cyan",appearance.accent);
     const picker=$("themeAccentColor");
     if(picker&&picker.value!==appearance.accent)picker.value=appearance.accent;
+    const accentHex=$("themeAccentHex");
+    if(accentHex)accentHex.textContent=appearance.accent.toUpperCase();
     const toggle=$("themeToggleBtn");
     if(toggle){
       const isLight=mode==="light";
