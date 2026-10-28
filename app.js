@@ -288,13 +288,14 @@
   }
   async function sendCallInvite(targetId,payload){
     const channel=supabase.channel(callUserTopic(targetId),{config:{private:true}});
-    try{await waitForCallChannel(channel);await broadcastToChannel(channel,"call-invite",payload);}
+    try{await waitForCallChannel(channel);await broadcastToChannel(channel,payload.type==="call-state"?"call-state":"call-invite",payload);}
     finally{await supabase.removeChannel(channel);}
   }
   function startTeamCallNotifications(){
     if(callInboxChannel&&supabase){supabase.removeChannel(callInboxChannel);callInboxChannel=null;}
     if(localMode||!supabase||!session?.user?.id||!teamOwnerId)return;
     callInboxChannel=supabase.channel(callUserTopic(session.user.id),{config:{private:true}})
+      .on("broadcast",{event:"call-state"},message=>{const data=message.payload;if(data?.type==="call-state"&&data.toId===session?.user?.id&&data.state==="rejected"&&data.callId===activeCall?.callId){showCallError(data.reason==="busy"?"The team member is already on another call.":"The team member declined the call.");cleanupTeamCall(false);}})
       .on("broadcast",{event:"call-invite"},message=>{
         const invite=message.payload;
         if(!invite||invite.toId!==session?.user?.id||invite.ownerId!==teamOwnerId||!invite.callId)return;
@@ -387,7 +388,7 @@
     if(!incomingCall)return;activeCall={...incomingCall,caller:false};incomingCall=null;
     $("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.add("hidden");$("callStatusText").textContent="Connecting…";showCallError("");
     try{await ensureCallMedia();await startPairCallChannel();await sendPairCallState("accepted");setCallActiveUI();}
-    catch(error){showCallError(error?.message||"Could not accept the call.");await rejectIncomingCall();cleanupTeamCall(false);}
+    catch(error){showCallError(error?.message||"Could not accept the call.");try{await sendCallInvite(activeCall?.fromId,{ownerId:teamOwnerId,callId:activeCall?.callId,fromId:session.user.id,toId:activeCall?.fromId,state:"rejected",type:"call-state"});}catch{}cleanupTeamCall(false);}
   }
   async function rejectIncomingCall(){
     const invite=incomingCall;if(!invite)return;incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
