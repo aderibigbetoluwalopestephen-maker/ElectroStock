@@ -21,12 +21,11 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const brevoKey = Deno.env.get("BREVO_API_KEY");
+    const appsScriptUrl = Deno.env.get("GOOGLE_APPS_SCRIPT_URL");
+    const appsScriptSecret = Deno.env.get("GOOGLE_APPS_SCRIPT_SECRET");
     const supportEmail = Deno.env.get("SUPPORT_EMAIL");
-    const senderEmail = Deno.env.get("BREVO_SENDER_EMAIL");
-    const senderName = Deno.env.get("BREVO_SENDER_NAME") || "ElectroStock Support";
-    if (!supabaseUrl || !anonKey || !serviceKey || !brevoKey || !supportEmail || !senderEmail) {
-      return json({ error: "Support email is not configured. Add BREVO_API_KEY, SUPPORT_EMAIL and BREVO_SENDER_EMAIL to Supabase Edge Function secrets." }, 503);
+    if (!supabaseUrl || !anonKey || !serviceKey || !appsScriptUrl || !appsScriptSecret || !supportEmail) {
+      return json({ error: "Gmail support notifications are not configured. Add GOOGLE_APPS_SCRIPT_URL, GOOGLE_APPS_SCRIPT_SECRET and SUPPORT_EMAIL to Supabase Edge Function secrets." }, 503);
     }
 
     const authHeader = req.headers.get("Authorization");
@@ -74,28 +73,37 @@ Deno.serve(async (req) => {
     }
 
     const ticketUrl = Deno.env.get("SUPPORT_TICKET_URL") || "https://electrostock-tan.vercel.app";
-    const htmlContent = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202938;max-width:640px;margin:auto"><h2>ElectroStock Support</h2><p>${escapeHtml(greeting)}</p><p><strong>Subject:</strong> ${escapeHtml(ticket.subject)}</p><p><strong>Category:</strong> ${escapeHtml(ticket.category || "Other")}<br><strong>Status:</strong> ${escapeHtml(ticket.status || "open")}<br><strong>Request reference:</strong> ${escapeHtml(ticket.id.slice(0, 8).toUpperCase())}</p><div style="background:#f5f7fa;padding:16px;border-radius:8px;white-space:pre-wrap">${escapeHtml(message.message)}</div><p><a href="${escapeHtml(ticketUrl)}">Open ElectroStock</a> to view the full conversation.</p><p style="font-size:12px;color:#687386">Please do not reply to this automated notification unless your verified sender address is configured to receive replies.</p></div>`;
+    const greetingHtml = escapeHtml(greeting);
+    const subjectHtml = escapeHtml(ticket.subject);
+    const categoryHtml = escapeHtml(ticket.category || "Other");
+    const statusHtml = escapeHtml(ticket.status || "open");
+    const reference = ticket.id.slice(0, 8).toUpperCase();
+    const messageHtml = escapeHtml(message.message);
+    const htmlBody = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202938;max-width:640px;margin:auto"><h2>ElectroStock Support</h2><p>${greetingHtml}</p><p><strong>Subject:</strong> ${subjectHtml}</p><p><strong>Category:</strong> ${categoryHtml}<br><strong>Status:</strong> ${statusHtml}<br><strong>Request reference:</strong> ${reference}</p><div style="background:#f5f7fa;padding:16px;border-radius:8px;white-space:pre-wrap">${messageHtml}</div><p><a href="${escapeHtml(ticketUrl)}">Open ElectroStock</a> to view the full conversation.</p><p style="font-size:12px;color:#687386">This is an automated notification from ElectroStock Support.</p></div>`;
+    const plainBody = greeting + "\nSubject: " + ticket.subject + "\nRequest: " + reference + "\n\n" + message.message + "\n\nOpen ElectroStock: " + ticketUrl;
 
-    const emailResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+    const emailResponse = await fetch(appsScriptUrl, {
       method: "POST",
-      headers: { "accept": "application/json", "api-key": brevoKey, "content-type": "application/json" },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        sender: { name: senderName, email: senderEmail },
-        to: [{ email: recipient }],
-        replyTo: { email: replyToEmail, name: isAdmin ? senderName : "ElectroStock Customer" },
+        secret: appsScriptSecret,
+        to: recipient,
+        replyTo: replyToEmail,
         subject,
-        htmlContent,
-        textContent: greeting + "\nSubject: " + ticket.subject + "\nRequest: " + ticket.id.slice(0, 8).toUpperCase() + "\n\n" + message.message + "\n\nOpen ElectroStock: " + ticketUrl,
+        htmlBody,
+        plainBody,
       }),
     });
-    if (!emailResponse.ok) {
-      const detail = await emailResponse.text();
-      console.error("Brevo support notification failed:", emailResponse.status, detail);
-      return json({ error: "The ticket was saved, but the email notification failed. Check the Brevo sender and Edge Function secrets." }, 502);
+    const responseText = await emailResponse.text();
+    let emailResult: Record<string, unknown> = {};
+    try { emailResult = JSON.parse(responseText); } catch { /* Apps Script may return a redirect/error page. */ }
+    if (!emailResponse.ok || emailResult.success !== true) {
+      console.error("Gmail support notification failed:", emailResponse.status, responseText.slice(0, 1000));
+      return json({ error: "The support message was saved, but Gmail could not send the email. Check the Apps Script deployment and Supabase secrets." }, 502);
     }
     return json({ success: true });
   } catch (error) {
-    console.error("Support email notification error:", error);
+    console.error("Gmail support notification error:", error);
     return json({ error: "Unexpected error while sending the support email." }, 500);
   }
 });
