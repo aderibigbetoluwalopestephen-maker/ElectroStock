@@ -279,7 +279,7 @@
   function callTopic(a,b){return "electrostock-call:"+teamOwnerId+":"+[a,b].sort().join(":");}
   function callUserTopic(userId){return "electrostock-call-user:"+teamOwnerId+":"+userId;}
   async function waitForCallChannel(channel){
-    return new Promise((resolve,reject)=>{let done=false;channel.subscribe(status=>{if(done)return;if(status==="SUBSCRIBED"){done=true;resolve(channel);}else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){done=true;reject(new Error("Secure calling channel could not connect ("+status+"). Run the calling SQL migration in Supabase and try again."));}});});
+    return new Promise((resolve,reject)=>{let done=false;channel.subscribe((status,err)=>{if(done)return;if(status==="SUBSCRIBED"){done=true;resolve(channel);}else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){done=true;console.error("ElectroStock secure calling channel failed:",status,err||null);const detail=err?.message||err?.reason||err?.code||"";reject(new Error("Secure calling channel could not connect ("+status+")"+(detail?": "+detail:"")+". Check the Supabase Realtime authorization settings and calling policies."));}});});
   }
   async function broadcastToChannel(channel,event,payload){
     if(!channel)throw new Error("The secure call connection is not ready.");
