@@ -50,6 +50,11 @@
   }
   function closeOnboarding(){ $("onboardingModal").classList.add("hidden");document.body.style.overflow=""; }
   function openPasswordReset(isInvite=false){$("resetPasswordMessage").textContent="";$("resetPasswordTitle").textContent=isInvite?"Set your ElectroStock password":"Choose a new password";$("saveNewPasswordBtn").textContent=isInvite?"Save password":"Update password";$("resetPasswordModal").classList.remove("hidden");document.body.style.overflow="hidden";}
+  async function syncRealtimeAuth(activeSession=session){
+    if(!supabase||localMode||!activeSession?.access_token||!supabase.realtime?.setAuth)return;
+    try{await supabase.realtime.setAuth(activeSession.access_token);}
+    catch(error){console.error("ElectroStock could not sync the signed-in session with Realtime:",error);}
+  }
   async function init(){
     $("todayLabel").textContent=new Date().toLocaleDateString("en-NG",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
     initializeMonthFilters();
@@ -59,10 +64,12 @@
     if(configured && window.supabase){
       supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);localMode=false;
       const {data:{session:s}}=await supabase.auth.getSession();session=s;
+      await syncRealtimeAuth(session);
       supabase.auth.onAuthStateChange((event,s)=>{
         session=s;
+        if(s?.access_token&&supabase.realtime?.setAuth)supabase.realtime.setAuth(s.access_token).catch(error=>console.error("ElectroStock Realtime session update failed:",error));
         if(event==="PASSWORD_RECOVERY"){openPasswordReset();return;}
-        if(s){setTimeout(async()=>{showApp();await loadCloud();},0);}else if(event==="SIGNED_OUT"){showAuth();}
+        if(s){setTimeout(async()=>{await syncRealtimeAuth(s);showApp();await loadCloud();},0);}else if(event==="SIGNED_OUT"){showAuth();}
       });
       if(session){
         showApp();await loadCloud();
