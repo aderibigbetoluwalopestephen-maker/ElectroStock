@@ -456,7 +456,7 @@
       ? "Premium active · "+teamMembers.length+" staff member"+(teamMembers.length===1?"":"s")+" added. You can add more staff."
       : "Free plan · "+teamMembers.length+" of 2 staff members used. Subscribe to Premium to add more.";
     const inviteButton=$("inviteStaffBtn");
-    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=2;inviteButton.disabled=blocked;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";}
+    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=2;inviteButton.disabled=false;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";inviteButton.classList.toggle("secondary",blocked);inviteButton.setAttribute("aria-label",blocked?"Open Premium upgrade options":"Invite staff");}
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
   }
   function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));if(tab==="chat")openTeamChat();else closeTeamChat();}
