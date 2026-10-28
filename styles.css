@@ -267,3 +267,44 @@
 .accent-color-details strong{font-size:13px;letter-spacing:.6px;color:var(--purple);font-variant-numeric:tabular-nums}
 .accent-color-details .muted{font-size:11px;white-space:normal}
 :root[data-theme="light"] .accent-picker-wrap{background:color-mix(in srgb,var(--purple) 6%,white)}
+
+
+/* Complete live accent-color coverage: all decorative brand accents follow the picker */
+:root{--accent-tint:color-mix(in srgb,var(--purple) 14%,transparent);--accent-border:color-mix(in srgb,var(--purple) 38%,var(--line));--accent-glow:color-mix(in srgb,var(--purple) 22%,transparent)}
+.brand-mark span{color:#fff}
+.brand-mark,.auth-card .brand-mark{background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 48%,white),var(--purple));box-shadow:0 8px 24px var(--accent-glow)}
+.auth-card h1 span{color:var(--purple)}
+.eyebrow{color:color-mix(in srgb,var(--purple) 55%,var(--text))}
+.btn.primary{background:var(--purple);border:1px solid var(--purple);color:#fff;box-shadow:0 5px 18px var(--accent-glow)}
+.btn.primary:hover{background:color-mix(in srgb,var(--purple) 88%,black)}
+.text-btn,.empty-icon,.product-thumb,.mini-btn:hover,.notification-enable{color:var(--purple)}
+.nav-item.active{background:var(--accent-tint);color:var(--purple);border-color:var(--accent-border)}
+.nav-item:hover{background:color-mix(in srgb,var(--purple) 9%,var(--panel));}
+.nav-item.active:hover{background:color-mix(in srgb,var(--purple) 19%,var(--panel))}
+.nav-count{border:1px solid var(--accent-border)}
+.avatar{background:var(--accent-tint);color:var(--purple);border:1px solid var(--accent-border)}
+.stat-icon.violet,.stat-icon.blue,.violet,.blue{color:var(--purple);background:var(--accent-tint)}
+.product-thumb{background:var(--accent-tint)}
+.snapshot-ring{border-color:var(--purple);box-shadow:inset 0 0 0 8px color-mix(in srgb,var(--purple) 13%,var(--panel))}
+.snapshot-ring:after{border-top-color:var(--purple)}
+.dot.in-stock,.in-stock{background:var(--purple)}
+.live-pill{border-color:var(--accent-border);background:var(--accent-tint);color:var(--purple)}
+.search-box{color:var(--purple)}
+.icon-btn:focus-visible,.mini-btn:focus-visible,.btn:focus-visible,.text-btn:focus-visible,.nav-item:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
+.mini-btn:hover{border-color:var(--purple)}
+.auth-card input:focus,.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus,.toolbar select:focus,.search-box:focus-within,.sales-search:focus{border-color:var(--purple);box-shadow:0 0 0 3px var(--accent-tint)}
+.theme-mode-btn[aria-pressed="true"]{background:var(--purple);border-color:var(--purple);color:#fff}
+#themeAccentColor{border-color:var(--purple)}
+.accent-picker-wrap{border-color:var(--accent-border);background:color-mix(in srgb,var(--purple) 9%,var(--panel))}
+.accent-picker-wrap:focus-within{border-color:var(--purple);box-shadow:0 0 0 3px var(--accent-tint)}
+.accent-color-details strong{color:var(--purple)}
+.notification-item.unread,.notification-item-icon{background:var(--accent-tint)}
+.notification-item-icon{color:var(--purple)}
+.notification-enable{border-color:var(--accent-border)}
+:root[data-theme="light"] .brand-mark{color:#fff}
+:root[data-theme="light"] .eyebrow{color:color-mix(in srgb,var(--purple) 60%,#263247)}
+:root[data-theme="light"] .stat-icon.violet,:root[data-theme="light"] .stat-icon.blue,:root[data-theme="light"] .violet,:root[data-theme="light"] .blue{color:var(--purple);background:color-mix(in srgb,var(--purple) 13%,white)}
+:root[data-theme="light"] .live-pill{color:color-mix(in srgb,var(--purple) 70%,#182235);background:color-mix(in srgb,var(--purple) 9%,white)}
+:root[data-theme="light"] .product-thumb{background:color-mix(in srgb,var(--purple) 10%,white);color:var(--purple)}
+:root[data-theme="light"] .nav-count{background:color-mix(in srgb,var(--purple) 9%,white);color:var(--purple)}
+:root[data-theme="light"] .btn.primary{background:var(--purple);color:#fff}
