@@ -322,7 +322,7 @@
     const channel=supabase.channel(topic,{config:{private:true}})
       .on("broadcast",{event:"call-state"},async message=>{
         const data=message.payload;if(!data||data.callId!==activeCall?.callId||data.senderId===session?.user?.id)return;
-        if(data.state==="accepted"&&activeCall?.caller){try{await createCallOffer();}catch(error){showCallError(error?.message||"Could not start the call.");endTeamCall(true);}}
+        if(data.state==="accepted"&&activeCall?.caller){clearCallRingTimeout();try{await createCallOffer();}catch(error){showCallError(error?.message||"Could not start the call.");endTeamCall(true);}}
         else if(data.state==="rejected"){showCallError((callMemberName(activeCall.toId))+" declined the call.");cleanupTeamCall(false);}
         else if(data.state==="ended"){cleanupTeamCall(false);}
       })
