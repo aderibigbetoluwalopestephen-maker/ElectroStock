@@ -104,9 +104,17 @@
       return;
     }
     $("loginBtn").disabled=true;$("loginBtn").textContent="Signing in…";
-    const {data,error}=await supabase.auth.signInWithPassword({email,password});
-    $("loginBtn").disabled=false;$("loginBtn").textContent="Sign in";
-    if(error){authMessage(error.message);return;}session=data.session;showApp();await loadCloud();
+    try {
+      const {data,error}=await supabase.auth.signInWithPassword({email,password});
+      if(error){authMessage(error.message);return;}
+      session=data.session;showApp();await loadCloud();
+    } catch(error) {
+      console.error("ElectroStock sign-in failed:",error);
+      authMessage("Sign-in could not complete. Check your internet connection and try again. "+(error?.message||"Please try again."));
+    } finally {
+      $("loginBtn").disabled=false;
+      $("loginBtn").textContent=authMode==="signup"?"Create account":"Sign in";
+    }
   });
   $("forgotPasswordBtn").addEventListener("click",async()=>{
     if(localMode){authMessage("Password recovery is available after connecting Supabase.");return;}
