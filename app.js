@@ -634,43 +634,7 @@
     host.innerHTML=supportMessages.map(m=>'<article class="support-message '+(m.sender_id===session.user.id?'mine':'')+'"><div class="support-message-head"><strong>'+((m.sender_id===session.user.id)?"You":(isSupportAdmin?"Customer / store team":"ElectroStock support"))+'</strong><time>'+new Date(m.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"})+'</time></div><p>'+esc(m.message).replace(/\n/g,"<br>")+'</p></article>').join("")||'<p class="muted">No replies yet. Send a message below to continue.</p>';
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
-  $("supportTicketForm").addEventListener("submit",async e=>{
-    e.preventDefault();
-    if(localMode||!session?.user?.id){$("supportFormMessage").textContent="Sign in to your connected ElectroStock account to submit a support request.";return;}
-    const subject=$("supportSubject").value.trim(),message=$("supportMessage").value.trim();if(!subject||!message)return;
-    const btn=$("supportSubmitBtn");btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Submitting…';$("supportFormMessage").textContent="";
-    try{
-      const created=await supabase.from("support_tickets").insert({store_owner_id:teamOwnerId||session.user.id,created_by:session.user.id,subject,category:$("supportCategory").value,priority:$("supportPriority").value,status:"open"}).select("id").single();
-      if(created.error)throw created.error;
-      const reply=await supabase.from("support_ticket_messages").insert({ticket_id:created.data.id,sender_id:session.user.id,message}).select("id").single();
-      if(reply.error){$("supportFormMessage").textContent="Ticket was created, but the first message could not be saved: "+reply.error.message;await loadSupportData();return;}
-      const emailError=await notifySupportEmail(created.data.id,reply.data.id);
-      $("supportTicketForm").reset();
-      $("supportFormMessage").textContent=emailError?"Support request saved, but the email notification failed: "+emailError:"Support request submitted. An email notification has been sent to ElectroStock support.";
-      await loadSupportData();await openSupportTicket(created.data.id);
-    }catch(err){$("supportFormMessage").textContent=err?.message||"The support request could not be submitted. Check the support migration and try again.";}
-    finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Submit request';}
-  });
-  $("supportReplyForm").addEventListener("submit",async e=>{
-    e.preventDefault();if(!activeSupportTicketId||!session?.user?.id)return;
-    const message=$("supportReplyText").value.trim();if(!message)return;
-    const btn=$("supportReplyForm").querySelector('button[type="submit"]');btn.disabled=true;$("supportReplyMessage").textContent="";
-    const ticketId=activeSupportTicketId;
-    const result=await supabase.from("support_ticket_messages").insert({ticket_id:ticketId,sender_id:session.user.id,message}).select("id").single();
-    if(result.error){$("supportReplyMessage").textContent=result.error.message;btn.disabled=false;return;}
-    const emailError=await notifySupportEmail(ticketId,result.data.id);
-    $("supportReplyText").value="";
-    await loadSupportData();await openSupportTicket(ticketId,false);
-    $("supportReplyMessage").textContent=emailError?"Reply saved, but the email notification failed: "+emailError:(isSupportAdmin?"Reply sent and customer email notification delivered.":"Reply sent and support email notification delivered.");
-    btn.disabled=false;
-  });
-  $("supportAdminStatus").addEventListener("change",async()=>{
-    if(!isSupportAdmin||!activeSupportTicketId)return;
-    const result=await supabase.from("support_tickets").update({status:$("supportAdminStatus").value,updated_at:new Date().toISOString()}).eq("id",activeSupportTicketId);
-    if(result.error){toast("Ticket status could not be updated: "+result.error.message);return;}
-    await loadSupportData();await openSupportTicket(activeSupportTicketId,false);toast("Support request status updated.");
-  });
-  $("refreshSupportBtn").addEventListener("click",loadSupportData);
+  // Support Centre ticket handlers are disabled while the page displays Coming Soon.
   function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");if(view==="settings")populateSettingsForm();if(view==="attendance"){loadTeamData();}if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
