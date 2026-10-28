@@ -91,6 +91,20 @@
     e.preventDefault();authMessage("");
     if(localMode){readLocal();showApp();toast("Demo workspace opened. Configure Supabase for secure accounts.");return;}
     const email=$("email").value.trim(),password=$("password").value;
+    if(!localMode && (!supabase || !supabase.auth)) {
+      try {
+        if(configured && window.supabase && typeof window.supabase.createClient==="function") {
+          supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);
+        }
+      } catch(initError) {
+        console.error("ElectroStock Supabase client initialization failed:",initError);
+      }
+      if(!supabase || !supabase.auth) {
+        authMessage("ElectroStock could not initialize secure sign-in. Refresh the page and try again. If this continues, check that the Supabase library and config.js are loading on the deployed site.");
+        $("loginBtn").disabled=false;$("loginBtn").textContent="Sign in";
+        return;
+      }
+    }
     if(authMode==="signup"){
       const fullName=$("fullName").value.trim();
       if(!fullName){authMessage("Enter your full name.");return;}
