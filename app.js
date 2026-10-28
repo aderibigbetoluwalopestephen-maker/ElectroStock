@@ -260,6 +260,166 @@
   let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
   let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
   const seenChatMessageIds=new Set();
+
+  let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null;
+  function callPanelOpen(){const panel=$("teamCallPanel");panel.classList.remove("hidden");panel.classList.add("is-open");}
+  function closeCallPanel(){if(incomingCall&&!activeCall){rejectIncomingCall();return;}const panel=$("teamCallPanel");panel.classList.add("hidden");panel.classList.remove("is-open");}
+  function callMemberName(userId){if(userId===teamOwnerId)return (session?.user?.user_metadata?.full_name||"Store Owner");const member=teamMembers.find(m=>m.user_id===userId);return member?.display_name||"Team member";}
+  function refreshCallContacts(){
+    const select=$("callContactSelect");if(!select)return;const previous=select.value;const options=[];
+    if(currentRole!=="owner"&&teamOwnerId&&teamOwnerId!==session?.user?.id)options.push({id:teamOwnerId,name:"Store Owner"});
+    teamMembers.filter(m=>m.active!==false&&m.user_id&&m.user_id!==session?.user?.id).forEach(m=>options.push({id:m.user_id,name:m.display_name+" ("+(m.role==="manager"?"Manager":"Sales Rep")+")"}));
+    select.innerHTML='<option value="">Choose a team member</option>'+options.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.name)+'</option>').join("");
+    if(options.some(m=>m.id===previous))select.value=previous;
+    const allowed=!localMode&&!!supabase&&!!session?.user?.id&&!!teamOwnerId;
+    $("startAudioCallBtn").disabled=!allowed||options.length===0;$("startVideoCallBtn").disabled=!allowed||options.length===0;
+    $("startAudioCallFromChat").disabled=!allowed||options.length===0;$("startVideoCallFromChat").disabled=!allowed||options.length===0;
+  }
+  function showCallError(message){$("callErrorMessage").textContent=message||"";}
+  function callTopic(a,b){return "electrostock-call:"+teamOwnerId+":"+[a,b].sort().join(":");}
+  function callUserTopic(userId){return "electrostock-call-user:"+teamOwnerId+":"+userId;}
+  async function waitForCallChannel(channel){
+    return new Promise((resolve,reject)=>{let done=false;channel.subscribe(status=>{if(done)return;if(status==="SUBSCRIBED"){done=true;resolve(channel);}else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){done=true;reject(new Error("Secure calling channel could not connect ("+status+"). Run the calling SQL migration in Supabase and try again."));}});});
+  }
+  async function broadcastToChannel(channel,event,payload){
+    if(!channel)throw new Error("The secure call connection is not ready.");
+    const result=await channel.send({type:"broadcast",event,payload});
+    if(result!=="ok")throw new Error("The call signal could not be sent. Check the Supabase calling policies and try again.");
+  }
+  async function sendCallInvite(targetId,payload){
+    const channel=supabase.channel(callUserTopic(targetId),{config:{private:true}});
+    try{await waitForCallChannel(channel);await broadcastToChannel(channel,"call-invite",payload);}
+    finally{await supabase.removeChannel(channel);}
+  }
+  function startTeamCallNotifications(){
+    if(callInboxChannel&&supabase){supabase.removeChannel(callInboxChannel);callInboxChannel=null;}
+    if(localMode||!supabase||!session?.user?.id||!teamOwnerId)return;
+    callInboxChannel=supabase.channel(callUserTopic(session.user.id),{config:{private:true}})
+      .on("broadcast",{event:"call-invite"},message=>{
+        const invite=message.payload;
+        if(!invite||invite.toId!==session?.user?.id||invite.ownerId!==teamOwnerId||!invite.callId)return;
+        if(activeCall||incomingCall){sendCallInvite(invite.fromId,{type:"call-state",ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",reason:"busy"}).catch(()=>{});return;}
+        incomingCall=invite;callPanelOpen();$("callSetupArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.remove("hidden");
+        $("incomingCallName").textContent=invite.fromName||callMemberName(invite.fromId);$("incomingCallDetails").textContent=(invite.mode==="video"?"Incoming video call":"Incoming audio call")+" · "+$("incomingCallName").textContent;
+        $("callStatusText").textContent="Incoming "+(invite.mode==="video"?"video":"audio")+" call";showCallError("");
+        toast("Incoming "+(invite.mode==="video"?"video":"audio")+" call from "+(invite.fromName||"your team"));
+        sendBrowserNotification("Incoming call · "+(invite.fromName||"Team member"),"Open ElectroStock to answer the "+invite.mode+" call.","electrostock-call-"+invite.callId);
+      }).subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("ElectroStock calling inbox channel:",status);});
+  }
+  async function startPairCallChannel(){
+    if(callPairChannel&&supabase){await supabase.removeChannel(callPairChannel);callPairChannel=null;}
+    const topic=callTopic(activeCall.fromId,activeCall.toId);
+    const channel=supabase.channel(topic,{config:{private:true}})
+      .on("broadcast",{event:"call-state"},async message=>{
+        const data=message.payload;if(!data||data.callId!==activeCall?.callId||data.senderId===session?.user?.id)return;
+        if(data.state==="accepted"&&activeCall?.caller){try{await createCallOffer();}catch(error){showCallError(error?.message||"Could not start the call.");endTeamCall(true);}}
+        else if(data.state==="rejected"){showCallError((callMemberName(activeCall.toId))+" declined the call.");cleanupTeamCall(false);}
+        else if(data.state==="ended"){cleanupTeamCall(false);}
+      })
+      .on("broadcast",{event:"call-signal"},async message=>{
+        const data=message.payload;if(!data||data.callId!==activeCall?.callId||data.senderId===session?.user?.id||data.targetId!==session?.user?.id)return;
+        try{
+          if(data.signalType==="offer"&&!activeCall.caller){
+            await ensureCallMedia();await ensurePeerConnection();await callPeerConnection.setRemoteDescription(new RTCSessionDescription(data.description));
+            const answer=await callPeerConnection.createAnswer();await callPeerConnection.setLocalDescription(answer);
+            await sendPairCallSignal("answer",{description:callPeerConnection.localDescription});
+            setCallActiveUI();
+          }else if(data.signalType==="answer"&&activeCall.caller){
+            await callPeerConnection.setRemoteDescription(new RTCSessionDescription(data.description));setCallActiveUI();
+          }else if(data.signalType==="ice"&&data.candidate&&callPeerConnection){
+            try{await callPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));}catch(iceError){console.warn("Ignoring late ICE candidate",iceError);}
+          }
+        }catch(error){showCallError(error?.message||"The call connection failed.");}
+      });
+    await waitForCallChannel(channel);callPairChannel=channel;
+  }
+  async function sendPairCallSignal(signalType,extra={}){
+    if(!activeCall||!callPairChannel)return;
+    await broadcastToChannel(callPairChannel,"call-signal",{callId:activeCall.callId,senderId:session.user.id,targetId:activeCall.caller?activeCall.toId:activeCall.fromId,signalType,...extra});
+  }
+  async function sendPairCallState(state,extra={}){
+    if(!activeCall||!callPairChannel)return;
+    await broadcastToChannel(callPairChannel,"call-state",{callId:activeCall.callId,senderId:session.user.id,state,...extra});
+  }
+  async function ensureCallMedia(){
+    if(localCallStream)return localCallStream;
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("Your browser does not support microphone/camera access. Open ElectroStock in an updated browser over HTTPS.");
+    try{localCallStream=await navigator.mediaDevices.getUserMedia({audio:true,video:activeCall?.mode==="video"});}
+    catch(error){throw new Error(error?.name==="NotAllowedError"?"Allow microphone"+(activeCall?.mode==="video"?" and camera":"")+" access in your browser to make this call.":error?.message||"Could not access your microphone or camera.");}
+    $("localCallVideo").srcObject=localCallStream;$("localCallVideo").classList.toggle("audio-only",activeCall?.mode!=="video");
+    $("toggleCallCameraBtn").classList.toggle("hidden",activeCall?.mode!=="video");
+    return localCallStream;
+  }
+  async function ensurePeerConnection(){
+    if(callPeerConnection)return callPeerConnection;
+    const stream=await ensureCallMedia();
+    callRemoteStream=new MediaStream();
+    callPeerConnection=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+    stream.getTracks().forEach(track=>callPeerConnection.addTrack(track,stream));
+    callPeerConnection.ontrack=event=>{(event.streams?.[0]?.getTracks()||[event.track]).forEach(track=>{if(!callRemoteStream.getTracks().some(t=>t.id===track.id))callRemoteStream.addTrack(track);});$("remoteCallVideo").srcObject=event.streams?.[0]||callRemoteStream;};
+    callPeerConnection.onicecandidate=event=>{if(event.candidate)sendPairCallSignal("ice",{candidate:event.candidate}).catch(error=>console.warn("Could not send ICE candidate",error));};
+    callPeerConnection.onconnectionstatechange=()=>{if(callPeerConnection&&["failed","disconnected"].includes(callPeerConnection.connectionState))showCallError("Connection is unstable. Check your internet connection and try again.");};
+    return callPeerConnection;
+  }
+  async function createCallOffer(){
+    await ensureCallMedia();await ensurePeerConnection();
+    const offer=await callPeerConnection.createOffer();await callPeerConnection.setLocalDescription(offer);
+    await sendPairCallSignal("offer",{description:callPeerConnection.localDescription});setCallActiveUI();
+  }
+  function setCallActiveUI(){
+    $("callSetupArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("activeCallArea").classList.remove("hidden");
+    $("callStatusText").textContent=(activeCall?.mode==="video"?"Video":"Audio")+" call · "+callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
+    callPanelOpen();
+  }
+  async function beginTeamCall(mode){
+    if(localMode||!supabase||!session?.user?.id){showCallError("Secure team calling requires a signed-in Supabase account.");return;}
+    const targetId=$("callContactSelect").value;if(!targetId){showCallError("Choose a team member first.");return;}
+    if(targetId===session.user.id){showCallError("Choose another team member.");return;}
+    if(activeCall||incomingCall){showCallError("Finish the current call before starting another one.");return;}
+    activeCall={callId:crypto.randomUUID(),ownerId:teamOwnerId,fromId:session.user.id,toId:targetId,mode,caller:true};
+    callPanelOpen();$("callSetupArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("callStatusText").textContent="Calling "+callMemberName(targetId)+"…";showCallError("");
+    try{
+      await startPairCallChannel();
+      await sendCallInvite(targetId,{ownerId:teamOwnerId,callId:activeCall.callId,fromId:session.user.id,toId:targetId,fromName:session.user.user_metadata?.full_name||session.user.email||"Team member",mode});
+    }catch(error){showCallError(error?.message||"Could not start the call.");cleanupTeamCall(false);$("callSetupArea").classList.remove("hidden");}
+  }
+  async function acceptIncomingCall(){
+    if(!incomingCall)return;activeCall={...incomingCall,caller:false};incomingCall=null;
+    $("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.add("hidden");$("callStatusText").textContent="Connecting…";showCallError("");
+    try{await ensureCallMedia();await startPairCallChannel();await sendPairCallState("accepted");setCallActiveUI();}
+    catch(error){showCallError(error?.message||"Could not accept the call.");await rejectIncomingCall();cleanupTeamCall(false);}
+  }
+  async function rejectIncomingCall(){
+    const invite=incomingCall;if(!invite)return;incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    try{await sendCallInvite(invite.fromId,{ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",type:"call-state"});}catch(error){console.warn("Could not notify caller of declined call",error);}
+    $("callStatusText").textContent="Call declined";refreshCallContacts();
+  }
+  async function endTeamCall(remote=false){
+    if(activeCall&&!remote){try{await sendPairCallState("ended");}catch(error){console.warn("Could not send call end signal",error);}}
+    cleanupTeamCall(false);
+  }
+  function cleanupTeamCall(keepPanel=false){
+    if(callPeerConnection){callPeerConnection.ontrack=null;callPeerConnection.onicecandidate=null;callPeerConnection.close();callPeerConnection=null;}
+    if(localCallStream){localCallStream.getTracks().forEach(track=>track.stop());localCallStream=null;}
+    callRemoteStream=null;callMicMuted=false;callCameraOff=false;
+    $("localCallVideo").srcObject=null;$("remoteCallVideo").srcObject=null;
+    $("toggleCallMicBtn").innerHTML='<i class="fa-solid fa-microphone" aria-hidden="true"></i><span>Mute</span>';$("toggleCallCameraBtn").innerHTML='<i class="fa-solid fa-video" aria-hidden="true"></i><span>Camera</span>';
+    if(callPairChannel&&supabase){supabase.removeChannel(callPairChannel);callPairChannel=null;}
+    activeCall=null;incomingCall=null;$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    $("callStatusText").textContent="Call ended";refreshCallContacts();
+    if(!keepPanel){$("teamCallPanel").classList.add("hidden");$("teamCallPanel").classList.remove("is-open");}
+  }
+  $("startAudioCallBtn").addEventListener("click",()=>beginTeamCall("audio"));
+  $("startVideoCallBtn").addEventListener("click",()=>beginTeamCall("video"));
+  $("startAudioCallFromChat").addEventListener("click",()=>{closeTeamChat();callPanelOpen();refreshCallContacts();});
+  $("startVideoCallFromChat").addEventListener("click",()=>{closeTeamChat();callPanelOpen();refreshCallContacts();});
+  $("closeCallPanelBtn").addEventListener("click",closeCallPanel);
+  $("acceptCallBtn").addEventListener("click",acceptIncomingCall);
+  $("rejectCallBtn").addEventListener("click",rejectIncomingCall);
+  $("endCallBtn").addEventListener("click",()=>endTeamCall(false));
+  $("toggleCallMicBtn").addEventListener("click",()=>{if(!localCallStream)return;callMicMuted=!callMicMuted;localCallStream.getAudioTracks().forEach(track=>track.enabled=!callMicMuted);$("toggleCallMicBtn").innerHTML=callMicMuted?'<i class="fa-solid fa-microphone-slash" aria-hidden="true"></i><span>Unmute</span>':'<i class="fa-solid fa-microphone" aria-hidden="true"></i><span>Mute</span>';});
+  $("toggleCallCameraBtn").addEventListener("click",()=>{if(!localCallStream)return;callCameraOff=!callCameraOff;localCallStream.getVideoTracks().forEach(track=>track.enabled=!callCameraOff);$("toggleCallCameraBtn").innerHTML=callCameraOff?'<i class="fa-solid fa-video-slash" aria-hidden="true"></i><span>Camera on</span>':'<i class="fa-solid fa-video" aria-hidden="true"></i><span>Camera</span>';});
+
   const chatStorageKey=()=>`electrostock_chat_seen_${session?.user?.id||"guest"}`;
   function loadSeenChatIds(){if(chatSeenInitialized)return;try{const raw=sessionStorage.getItem(chatStorageKey());if(raw)JSON.parse(raw).forEach(id=>seenChatMessageIds.add(id));else teamMessages.forEach(m=>seenChatMessageIds.add(m.id));}catch{}chatSeenInitialized=true;}
   function saveSeenChatIds(){try{sessionStorage.setItem(chatStorageKey(),JSON.stringify([...seenChatMessageIds].slice(-500)));}catch{}}
@@ -399,7 +559,7 @@
     loadSeenChatIds();
     const chatOpen=!$("teamChatPanel").classList.contains("hidden")&&!$("teamView").classList.contains("hidden");
     teamMessages.forEach(m=>{if(!seenChatMessageIds.has(m.id)&&m.sender_id!==session?.user?.id&&!chatOpen)chatUnreadCount++;seenChatMessageIds.add(m.id);});
-    saveSeenChatIds();updateChatBadge();startTeamMessageNotifications();renderTeam();
+    saveSeenChatIds();updateChatBadge();startTeamMessageNotifications();startTeamCallNotifications();renderTeam();refreshCallContacts();
     if(currentRole==="owner")await loadAttendanceQr();
   }
   async function generateAttendanceQr(){
