@@ -585,7 +585,7 @@
     if(error){$("attendanceQrMessage").textContent="Run supabase/attendance_qr_migration.sql in Supabase SQL Editor to enable attendance QR codes.";return;}
     if(data){attendanceQrToken=data.token;attendanceQrStoreId=data.owner_id;renderAttendanceQr();}
   }
-  function printAttendanceQr(){if(!attendanceQrToken){$("attendanceQrMessage").textContent="Generate the store QR code first.";return;}window.print();}
+  function printAttendanceQr(){if(!attendanceQrToken){$("attendanceQrMessage").textContent="Generate the store QR code first.";return;}document.body.classList.add("printing-attendance-qr");window.addEventListener("afterprint",()=>document.body.classList.remove("printing-attendance-qr"),{once:true});window.print();setTimeout(()=>document.body.classList.remove("printing-attendance-qr"),60000);}
   function closeAttendanceScan(){const modal=$("attendanceScanModal");modal.classList.add("hidden");attendanceActionInProgress=false;modal.dataset.completed="false";modal.dataset.loadedToken="";$("confirmAttendanceBtn").disabled=false;$("cancelAttendanceScanBtn").textContent="Cancel";}
   async function handleAttendanceLink(token=attendanceTokenFromUrl){
     if(!token||!session?.user?.id||localMode||!supabase){if(localMode)$("attendanceScannerMessage").textContent="Secure attendance requires a connected Supabase account. Please sign in to your store account.";return;}
