@@ -942,11 +942,12 @@
       switchView("settings");
       const card=$("logoSubscriptionCard");
       if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
-      if(!hasActiveLogoSubscription()){
-        // Keep the payment launch inside the user's click gesture so Paystack can open.
-        $("subscribeLogoBtn").click();
-      }else{
+      if(hasActiveLogoSubscription()){
         toast("Your logo subscription is already active.");
+      }else{
+        // Navigate to the subscription card only. Do not trigger Paystack programmatically:
+        // browsers can open a blank checkout page when a popup is launched this way.
+        toast("Subscription options are ready. Select Subscribe to continue to secure checkout.");
       }
     }
   });
