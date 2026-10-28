@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.scan-pay-verify]
 verify_jwt = false
+
+[functions.notify-support-email]
+verify_jwt = true
