@@ -234,3 +234,23 @@
 .theme-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;width:max-content;max-width:100%;font-weight:700}
 .theme-toggle-btn i{font-size:16px}
 :root[data-theme="light"] .theme-toggle-btn{background:#edf1f7;color:#27344a;border-color:var(--line)}
+
+
+/* Accent color propagation fix: bind formerly hard-coded accent surfaces to the selected color */
+:root{--accent-rgb:139,124,255;--accent-soft:color-mix(in srgb,var(--purple) 15%,transparent)}
+:root[style*="--purple"]{--accent-rgb:139,124,255}
+.btn.primary{background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 45%,white),var(--purple));color:#fff;box-shadow:0 5px 18px color-mix(in srgb,var(--purple) 24%,transparent)}
+.text-btn{color:var(--purple)}
+.nav-item.active{background:linear-gradient(90deg,color-mix(in srgb,var(--purple) 20%,transparent),color-mix(in srgb,var(--purple) 5%,transparent));color:var(--purple);border-color:color-mix(in srgb,var(--purple) 28%,transparent)}
+.nav-item:hover{background:color-mix(in srgb,var(--purple) 12%,var(--panel));color:var(--text)}
+.nav-item.active:hover{color:var(--purple)}
+.brand-mark{background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 35%,white),var(--purple));box-shadow:0 8px 24px color-mix(in srgb,var(--purple) 25%,transparent)}
+.auth-card h1 span,.auth-card code,.empty-icon,.product-thumb,.mini-btn:hover{color:var(--purple)}
+.auth-card input:focus,.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus,.toolbar select:focus,.search-box:focus-within,.sales-search:focus{border-color:var(--purple);box-shadow:0 0 0 3px color-mix(in srgb,var(--purple) 13%,transparent)}
+.mini-btn:hover{border-color:var(--purple)}
+.snapshot-ring{border-color:var(--purple)}
+.in-stock,.dot.in-stock{background:var(--purple)}
+.notification-enable{color:var(--purple)}
+:root[data-theme="light"] .nav-item.active,:root[data-theme="light"] .nav-item:hover{background:var(--accent-soft);color:var(--purple)}
+:root[data-theme="light"] .btn.primary{color:#fff}
+.theme-mode-btn[aria-pressed="true"]{background:var(--purple);border-color:var(--purple)}
