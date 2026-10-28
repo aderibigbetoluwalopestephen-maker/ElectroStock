@@ -545,6 +545,17 @@
   $("startAttendanceScanBtn").addEventListener("click",startAttendanceScanner);
   $("stopAttendanceScanBtn").addEventListener("click",stopAttendanceScanner);
   $("refreshMyAttendanceBtn").addEventListener("click",async()=>{await refreshTeam();renderMyAttendance();});
+  async function notifySupportEmail(ticketId,messageId){
+    try{
+      const result=await supabase.functions.invoke("notify-support-email",{body:{ticket_id:ticketId,message_id:messageId}});
+      if(result.error)throw result.error;
+      if(result.data?.error)throw new Error(result.data.error);
+      return "";
+    }catch(error){
+      console.error("ElectroStock support email notification failed:",error);
+      return error?.message||"Email notification could not be sent.";
+    }
+  }
   async function loadSupportData(){
     if(!session?.user?.id || localMode){
       $("supportTicketList").innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-cloud" aria-hidden="true"></i></div><h3>Secure support needs an account</h3><p>Sign in with your Supabase-connected account to submit and track support requests.</p></div>';
@@ -596,9 +607,11 @@
     try{
       const created=await supabase.from("support_tickets").insert({store_owner_id:teamOwnerId||session.user.id,created_by:session.user.id,subject,category:$("supportCategory").value,priority:$("supportPriority").value,status:"open"}).select("id").single();
       if(created.error)throw created.error;
-      const reply=await supabase.from("support_ticket_messages").insert({ticket_id:created.data.id,sender_id:session.user.id,message});
+      const reply=await supabase.from("support_ticket_messages").insert({ticket_id:created.data.id,sender_id:session.user.id,message}).select("id").single();
       if(reply.error){$("supportFormMessage").textContent="Ticket was created, but the first message could not be saved: "+reply.error.message;await loadSupportData();return;}
-      $("supportTicketForm").reset();$("supportFormMessage").textContent="Support request submitted. Keep the request number shown in the conversation for reference.";
+      const emailError=await notifySupportEmail(created.data.id,reply.data.id);
+      $("supportTicketForm").reset();
+      $("supportFormMessage").textContent=emailError?"Support request saved, but the email notification failed: "+emailError:"Support request submitted. An email notification has been sent to ElectroStock support.";
       await loadSupportData();await openSupportTicket(created.data.id);
     }catch(err){$("supportFormMessage").textContent=err?.message||"The support request could not be submitted. Check the support migration and try again.";}
     finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Submit request';}
@@ -607,10 +620,14 @@
     e.preventDefault();if(!activeSupportTicketId||!session?.user?.id)return;
     const message=$("supportReplyText").value.trim();if(!message)return;
     const btn=$("supportReplyForm").querySelector('button[type="submit"]');btn.disabled=true;$("supportReplyMessage").textContent="";
-    const result=await supabase.from("support_ticket_messages").insert({ticket_id:activeSupportTicketId,sender_id:session.user.id,message});
+    const ticketId=activeSupportTicketId;
+    const result=await supabase.from("support_ticket_messages").insert({ticket_id:ticketId,sender_id:session.user.id,message}).select("id").single();
     if(result.error){$("supportReplyMessage").textContent=result.error.message;btn.disabled=false;return;}
-    $("supportReplyText").value="";$("supportReplyMessage").textContent="Reply sent.";
-    await loadSupportData();await openSupportTicket(activeSupportTicketId,false);btn.disabled=false;
+    const emailError=await notifySupportEmail(ticketId,result.data.id);
+    $("supportReplyText").value="";
+    await loadSupportData();await openSupportTicket(ticketId,false);
+    $("supportReplyMessage").textContent=emailError?"Reply saved, but the email notification failed: "+emailError:(isSupportAdmin?"Reply sent and customer email notification delivered.":"Reply sent and support email notification delivered.");
+    btn.disabled=false;
   });
   $("supportAdminStatus").addEventListener("change",async()=>{
     if(!isSupportAdmin||!activeSupportTicketId)return;
