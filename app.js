@@ -268,7 +268,7 @@
   let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
   const seenChatMessageIds=new Set();
 
-  let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null;
+  let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null,callTimerInterval=null,callStartedAt=null;
   function callPanelOpen(){const panel=$("teamCallPanel");panel.classList.remove("hidden");panel.classList.add("is-open");}
   function closeCallPanel(){if(incomingCall&&!activeCall){rejectIncomingCall();return;}const panel=$("teamCallPanel");panel.classList.add("hidden");panel.classList.remove("is-open");}
   function callMemberName(userId){if(userId===teamOwnerId)return (session?.user?.user_metadata?.full_name||"Store Owner");const member=teamMembers.find(m=>m.user_id===userId);return member?.display_name||"Team member";}
@@ -366,7 +366,7 @@
     stream.getTracks().forEach(track=>callPeerConnection.addTrack(track,stream));
     callPeerConnection.ontrack=event=>{(event.streams?.[0]?.getTracks()||[event.track]).forEach(track=>{if(!callRemoteStream.getTracks().some(t=>t.id===track.id))callRemoteStream.addTrack(track);});$("remoteCallVideo").srcObject=event.streams?.[0]||callRemoteStream;};
     callPeerConnection.onicecandidate=event=>{if(event.candidate)sendPairCallSignal("ice",{candidate:event.candidate}).catch(error=>console.warn("Could not send ICE candidate",error));};
-    callPeerConnection.onconnectionstatechange=()=>{if(callPeerConnection&&["failed","disconnected"].includes(callPeerConnection.connectionState))showCallError("Connection is unstable. Check your internet connection and try again.");};
+    callPeerConnection.onconnectionstatechange=()=>{if(!callPeerConnection)return;if(callPeerConnection.connectionState==="connected"){startCallDurationTimer();showCallError("");}else if(["failed","disconnected"].includes(callPeerConnection.connectionState)){showCallError("Video/audio connection is unstable. Check both users’ internet connections. If video keeps timing out, the call service may need a TURN relay server.");}};
     return callPeerConnection;
   }
   async function createCallOffer(){
@@ -374,6 +374,14 @@
     const offer=await callPeerConnection.createOffer();await callPeerConnection.setLocalDescription(offer);
     await sendPairCallSignal("offer",{description:callPeerConnection.localDescription});setCallActiveUI();
   }
+  function startCallDurationTimer(){
+    if(callTimerInterval)return;
+    callStartedAt=Date.now();
+    const timer=$("callDurationTimer");if(timer){timer.textContent="00:00";timer.classList.remove("hidden");}
+    const tick=()=>{const elapsed=Math.max(0,Math.floor((Date.now()-callStartedAt)/1000));const minutes=String(Math.floor(elapsed/60)).padStart(2,"0");const seconds=String(elapsed%60).padStart(2,"0");if(timer)timer.textContent=minutes+":"+seconds;};
+    tick();callTimerInterval=setInterval(tick,1000);
+  }
+  function stopCallDurationTimer(){if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null;}callStartedAt=null;const timer=$("callDurationTimer");if(timer){timer.textContent="00:00";timer.classList.add("hidden");}}
   function setCallActiveUI(){
     $("callSetupArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("activeCallArea").classList.remove("hidden");
     $("callStatusText").textContent=(activeCall?.mode==="video"?"Video":"Audio")+" call · "+callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
@@ -407,6 +415,7 @@
     cleanupTeamCall(false);
   }
   function cleanupTeamCall(keepPanel=false){
+    stopCallDurationTimer();
     if(callPeerConnection){callPeerConnection.ontrack=null;callPeerConnection.onicecandidate=null;callPeerConnection.close();callPeerConnection=null;}
     if(localCallStream){localCallStream.getTracks().forEach(track=>track.stop());localCallStream=null;}
     callRemoteStream=null;callMicMuted=false;callCameraOff=false;
