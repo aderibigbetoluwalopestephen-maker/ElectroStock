@@ -12,11 +12,29 @@ on realtime.messages
 for select
 to authenticated
 using (
-  -- Each signed-in user may read only their own call inbox.
-  -- The recipient UUID is the third part of electrostock-call-user:<ownerId>:<userId>.
-  -- This avoids relying on store_members row visibility just to receive an invite.
   realtime.topic() like 'electrostock-call-user:%'
-  and split_part(realtime.topic(), ':', 3) = auth.uid()::text
+  -- Subscriber must be the store owner or an active member of this store.
+  and (
+    split_part(realtime.topic(), ':', 2)::uuid = auth.uid()
+    or exists (
+      select 1
+      from public.store_members subscriber
+      where subscriber.owner_id = split_part(realtime.topic(), ':', 2)::uuid
+        and subscriber.user_id = auth.uid()
+        and coalesce(subscriber.active, true) = true
+    )
+  )
+  -- Inbox target must be the store owner or an active member of this same store.
+  and (
+    split_part(realtime.topic(), ':', 3)::uuid = split_part(realtime.topic(), ':', 2)::uuid
+    or exists (
+      select 1
+      from public.store_members target
+      where target.owner_id = split_part(realtime.topic(), ':', 2)::uuid
+        and target.user_id = split_part(realtime.topic(), ':', 3)::uuid
+        and coalesce(target.active, true) = true
+    )
+  )
 );
 
 create policy "ElectroStock team call inbox send"
