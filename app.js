@@ -548,7 +548,20 @@
   async function notifySupportEmail(ticketId,messageId){
     try{
       const result=await supabase.functions.invoke("notify-support-email",{body:{ticket_id:ticketId,message_id:messageId}});
-      if(result.error)throw result.error;
+      if(result.error){
+        let detail=result.error.message||"The email function request failed.";
+        try{
+          const response=result.error.context;
+          if(response&&typeof response.clone==="function"){
+            const raw=await response.clone().text();
+            if(raw){
+              try{const payload=JSON.parse(raw);detail=payload.error||payload.message||detail;}
+              catch{if(raw.length<500)detail=raw;}
+            }
+          }
+        }catch(readError){console.warn("Could not read support email error response:",readError);}
+        throw new Error(detail);
+      }
       if(result.data?.error)throw new Error(result.data.error);
       return "";
     }catch(error){
