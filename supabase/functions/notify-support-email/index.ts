@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
     }
 
     let recipient = supportEmail;
+    let replyToEmail = supportEmail;
     let subject = "[ElectroStock Support] New customer message: " + ticket.subject;
     let greeting = "A customer has sent a message to ElectroStock support.";
     if (isAdmin) {
@@ -64,8 +65,12 @@ Deno.serve(async (req) => {
       const customerEmail = customerData?.user?.email;
       if (customerError || !customerEmail) return json({ error: "The ticket creator has no available email address." }, 422);
       recipient = customerEmail;
+      replyToEmail = supportEmail;
       subject = "[ElectroStock Support] Reply to your request: " + ticket.subject;
       greeting = "ElectroStock support has replied to your request.";
+    } else {
+      const { data: senderData } = await adminClient.auth.admin.getUserById(message.sender_id);
+      if (senderData?.user?.email) replyToEmail = senderData.user.email;
     }
 
     const ticketUrl = Deno.env.get("SUPPORT_TICKET_URL") || "https://electrostock-tan.vercel.app";
@@ -77,6 +82,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         sender: { name: senderName, email: senderEmail },
         to: [{ email: recipient }],
+        replyTo: { email: replyToEmail, name: isAdmin ? senderName : "ElectroStock Customer" },
         subject,
         htmlContent,
         textContent: greeting + "\nSubject: " + ticket.subject + "\nRequest: " + ticket.id.slice(0, 8).toUpperCase() + "\n\n" + message.message + "\n\nOpen ElectroStock: " + ticketUrl,
