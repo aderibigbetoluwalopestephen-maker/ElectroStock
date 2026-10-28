@@ -254,3 +254,16 @@
 :root[data-theme="light"] .nav-item.active,:root[data-theme="light"] .nav-item:hover{background:var(--accent-soft);color:var(--purple)}
 :root[data-theme="light"] .btn.primary{color:#fff}
 .theme-mode-btn[aria-pressed="true"]{background:var(--purple);border-color:var(--purple)}
+
+
+/* Clear, integrated accent color picker with live selected-color preview */
+.accent-picker-wrap{display:flex;align-items:center;gap:14px;min-height:54px;padding:8px 12px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--purple) 7%,var(--panel));width:max-content;max-width:100%;transition:border-color .18s,background .18s}
+.accent-picker-wrap:focus-within{border-color:var(--purple);box-shadow:0 0 0 3px color-mix(in srgb,var(--purple) 16%,transparent)}
+#themeAccentColor{appearance:none;-webkit-appearance:none;flex:0 0 42px;width:42px;height:42px;padding:3px;border:2px solid var(--purple);border-radius:12px;background:var(--panel);cursor:pointer;overflow:hidden}
+#themeAccentColor::-webkit-color-swatch-wrapper{padding:0}
+#themeAccentColor::-webkit-color-swatch{border:0;border-radius:8px}
+#themeAccentColor::-moz-color-swatch{border:0;border-radius:8px}
+.accent-color-details{display:flex;flex-direction:column;gap:4px;min-width:0}
+.accent-color-details strong{font-size:13px;letter-spacing:.6px;color:var(--purple);font-variant-numeric:tabular-nums}
+.accent-color-details .muted{font-size:11px;white-space:normal}
+:root[data-theme="light"] .accent-picker-wrap{background:color-mix(in srgb,var(--purple) 6%,white)}
