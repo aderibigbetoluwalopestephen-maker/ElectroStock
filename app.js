@@ -268,7 +268,8 @@
   let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
   const seenChatMessageIds=new Set();
 
-  let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null,callTimerInterval=null,callStartedAt=null;
+  let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null,callTimerInterval=null,callStartedAt=null,callRingTimeout=null;
+  function clearCallRingTimeout(){if(callRingTimeout){clearTimeout(callRingTimeout);callRingTimeout=null;}}
   function callPanelOpen(){const panel=$("teamCallPanel");panel.classList.remove("hidden");panel.classList.add("is-open");}
   function closeCallPanel(){if(incomingCall&&!activeCall){rejectIncomingCall();return;}const panel=$("teamCallPanel");panel.classList.add("hidden");panel.classList.remove("is-open");}
   function callMemberName(userId){if(userId===teamOwnerId)return (session?.user?.user_metadata?.full_name||"Store Owner");const member=teamMembers.find(m=>m.user_id===userId);return member?.display_name||"Team member";}
@@ -302,16 +303,17 @@
     if(callInboxChannel&&supabase){supabase.removeChannel(callInboxChannel);callInboxChannel=null;}
     if(localMode||!supabase||!session?.user?.id||!teamOwnerId)return;
     callInboxChannel=supabase.channel(callUserTopic(session.user.id),{config:{private:true}})
-      .on("broadcast",{event:"call-state"},message=>{const data=message.payload;if(data?.type==="call-state"&&data.toId===session?.user?.id&&data.state==="rejected"&&data.callId===activeCall?.callId){showCallError(data.reason==="busy"?"The team member is already on another call.":"The team member declined the call.");cleanupTeamCall(false);}})
+      .on("broadcast",{event:"call-state"},message=>{const data=message.payload;if(data?.type!=="call-state"||data.toId!==session?.user?.id)return;if(data.state==="rejected"&&data.callId===activeCall?.callId){clearCallRingTimeout();showCallError(data.reason==="busy"?"The team member is already on another call.":"The team member declined the call.");cleanupTeamCall(false);}else if(data.state==="no-answer"&&data.callId===activeCall?.callId){clearCallRingTimeout();addNotification("Call not answered · "+callMemberName(activeCall.toId),"Your "+(activeCall.mode==="video"?"video":"audio")+" call was not answered.","call");showCallError("No answer. A missed-call notification was saved.");cleanupTeamCall(false);}})
       .on("broadcast",{event:"call-invite"},message=>{
         const invite=message.payload;
         if(!invite||invite.toId!==session?.user?.id||invite.ownerId!==teamOwnerId||!invite.callId)return;
         if(activeCall||incomingCall){sendCallInvite(invite.fromId,{type:"call-state",ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",reason:"busy"}).catch(()=>{});return;}
-        incomingCall=invite;callPanelOpen();$("callSetupArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.remove("hidden");
+        incomingCall=invite;clearCallRingTimeout();callPanelOpen();$("callSetupArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.remove("hidden");
         $("incomingCallName").textContent=invite.fromName||callMemberName(invite.fromId);$("incomingCallDetails").textContent=(invite.mode==="video"?"Incoming video call":"Incoming audio call")+" · "+$("incomingCallName").textContent;
         $("callStatusText").textContent="Incoming "+(invite.mode==="video"?"video":"audio")+" call";showCallError("");
         toast("Incoming "+(invite.mode==="video"?"video":"audio")+" call from "+(invite.fromName||"your team"));
         sendBrowserNotification("Incoming call · "+(invite.fromName||"Team member"),"Open ElectroStock to answer the "+invite.mode+" call.","electrostock-call-"+invite.callId);
+        callRingTimeout=setTimeout(()=>{if(!incomingCall||incomingCall.callId!==invite.callId)return;incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");$("callStatusText").textContent="Missed call";const who=invite.fromName||callMemberName(invite.fromId);const body="You missed an "+(invite.mode==="video"?"video":"audio")+" call from "+who+".";addNotification("Missed call · "+who,body,"call");toast(body);sendBrowserNotification("Missed call · "+who,body,"electrostock-missed-call-"+invite.callId);},30000);
       }).subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("ElectroStock calling inbox channel:",status);});
   }
   async function startPairCallChannel(){
@@ -397,16 +399,17 @@
     try{
       await startPairCallChannel();
       await sendCallInvite(targetId,{ownerId:teamOwnerId,callId:activeCall.callId,fromId:session.user.id,toId:targetId,fromName:session.user.user_metadata?.full_name||session.user.email||"Team member",mode});
+      clearCallRingTimeout();const ringingCallId=activeCall.callId;callRingTimeout=setTimeout(async()=>{if(!activeCall?.caller||activeCall.callId!==ringingCallId)return;try{await sendCallInvite(targetId,{type:"call-state",ownerId:teamOwnerId,callId:ringingCallId,fromId:session.user.id,toId:targetId,state:"no-answer"});}catch(error){console.warn("Could not send missed-call status",error);}addNotification("Call not answered · "+callMemberName(targetId),"Your "+(mode==="video"?"video":"audio")+" call was not answered.","call");showCallError("No answer. A notification has been saved.");cleanupTeamCall(false);},30000);
     }catch(error){showCallError(error?.message||"Could not start the call.");cleanupTeamCall(false);$("callSetupArea").classList.remove("hidden");}
   }
   async function acceptIncomingCall(){
-    if(!incomingCall)return;activeCall={...incomingCall,caller:false};incomingCall=null;
+    if(!incomingCall)return;clearCallRingTimeout();activeCall={...incomingCall,caller:false};incomingCall=null;
     $("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.add("hidden");$("callStatusText").textContent="Connecting…";showCallError("");
     try{await ensureCallMedia();await startPairCallChannel();await sendPairCallState("accepted");setCallActiveUI();}
     catch(error){showCallError(error?.message||"Could not accept the call.");try{await sendCallInvite(activeCall?.fromId,{ownerId:teamOwnerId,callId:activeCall?.callId,fromId:session.user.id,toId:activeCall?.fromId,state:"rejected",type:"call-state"});}catch{}cleanupTeamCall(false);}
   }
   async function rejectIncomingCall(){
-    const invite=incomingCall;if(!invite)return;incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    const invite=incomingCall;if(!invite)return;clearCallRingTimeout();incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
     try{await sendCallInvite(invite.fromId,{ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",type:"call-state"});}catch(error){console.warn("Could not notify caller of declined call",error);}
     $("callStatusText").textContent="Call declined";refreshCallContacts();
   }
@@ -415,7 +418,7 @@
     cleanupTeamCall(false);
   }
   function cleanupTeamCall(keepPanel=false){
-    stopCallDurationTimer();
+    clearCallRingTimeout();stopCallDurationTimer();
     if(callPeerConnection){callPeerConnection.ontrack=null;callPeerConnection.onicecandidate=null;callPeerConnection.close();callPeerConnection=null;}
     if(localCallStream){localCallStream.getTracks().forEach(track=>track.stop());localCallStream=null;}
     callRemoteStream=null;callMicMuted=false;callCameraOff=false;
