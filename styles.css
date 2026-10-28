@@ -346,3 +346,14 @@
   body.printing-attendance-qr #receiptModal *{display:none!important;visibility:hidden!important}
   body.printing-attendance-qr .attendance-qr-admin{display:block!important}
 }
+
+
+/* Team calling follows ElectroStock's selected brand accent color */
+.floating-call-header{background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 78%,#172438),var(--purple));}
+.incoming-call-avatar{background:color-mix(in srgb,var(--purple) 22%,#111b2b);color:color-mix(in srgb,var(--purple) 38%,white);border:1px solid color-mix(in srgb,var(--purple) 48%,transparent)}
+.call-setup-area select:focus{outline:2px solid var(--purple);outline-offset:1px;border-color:var(--purple)}
+.call-control-btn{transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.call-control-btn:not(.end-call-btn):hover{background:color-mix(in srgb,var(--purple) 22%,#1b2a40);border-color:var(--purple)}
+.call-control-btn:not(.end-call-btn):focus-visible,.floating-call-window button:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
+.call-start-actions .btn.primary{background:var(--purple);border-color:var(--purple)}
+.call-start-actions .btn.primary:hover{background:color-mix(in srgb,var(--purple) 84%,black)}
