@@ -554,7 +554,7 @@
     $("supportTicketList").innerHTML='<p class="muted support-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading support requests…</p>';
     const admin=await supabase.from("platform_support_admins").select("user_id").eq("user_id",session.user.id).maybeSingle();
     isSupportAdmin=!admin.error&&!!admin.data;
-    $("supportListHeading").textContent=isSupportAdmin?"All customer support requests":"Your support requests";
+    $("supportComposePanel").classList.toggle("hidden",isSupportAdmin);$("supportListHeading").textContent=isSupportAdmin?"Customer support inbox":"Your support requests";
     $("supportListDescription").textContent=isSupportAdmin?"Review customer cases and reply from the support team.":"Review request status and support replies.";
     const query=supabase.from("support_tickets").select("id,store_owner_id,created_by,subject,category,priority,status,created_at,updated_at").order("updated_at",{ascending:false}).limit(100);
     const result=isSupportAdmin?await query:await query.eq("store_owner_id",teamOwnerId||session.user.id);
@@ -570,7 +570,7 @@
   function supportStatusLabel(status){return ({open:"Open",in_progress:"In progress",resolved:"Resolved"}[status]||status||"Open");}
   function renderSupportTickets(){
     const host=$("supportTicketList");
-    if(!supportTickets.length){host.innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-regular fa-comments" aria-hidden="true"></i></div><h3>No support requests yet</h3><p>Submit a request using the form. Your updates will appear here.</p></div>';return;}
+    if(!supportTickets.length){host.innerHTML='<div class="empty-state"><div class="empty-icon"><i class="fa-regular fa-comments" aria-hidden="true"></i></div><h3>No support requests yet</h3><p>'+(isSupportAdmin?"Customer tickets will appear here when users contact ElectroStock support.":"Submit a request using the form. Your updates will appear here.")+'</p></div>';return;}
     host.innerHTML=supportTickets.map(t=>'<button type="button" class="support-ticket-row '+(t.id===activeSupportTicketId?'selected':'')+'" data-support-ticket="'+esc(t.id)+'"><span class="support-ticket-main"><strong>'+esc(t.subject)+'</strong><small>'+esc(t.category)+' · '+new Date(t.updated_at||t.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"})+'</small></span><span class="support-ticket-meta"><span class="support-status status-'+esc(t.status)+'">'+esc(supportStatusLabel(t.status))+'</span><small class="support-priority priority-'+esc(t.priority)+'">'+esc(t.priority||"normal")+'</small></span></button>').join("");
     host.querySelectorAll("[data-support-ticket]").forEach(b=>b.addEventListener("click",()=>openSupportTicket(b.dataset.supportTicket)));
   }
