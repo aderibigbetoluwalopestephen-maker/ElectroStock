@@ -269,6 +269,48 @@
   const seenChatMessageIds=new Set();
 
   let callInboxChannel=null,callPairChannel=null,activeCall=null,incomingCall=null,localCallStream=null,callPeerConnection=null,callMicMuted=false,callCameraOff=false,callRemoteStream=null,callTimerInterval=null,callStartedAt=null,callRingTimeout=null;
+  let ringtoneAudioContext=null,ringtoneInterval=null,ringtoneNodes=[];
+  function stopIncomingRingtone(){
+    if(ringtoneInterval){clearInterval(ringtoneInterval);ringtoneInterval=null;}
+    ringtoneNodes.forEach(node=>{try{node.stop();}catch{}});
+    ringtoneNodes=[];
+  }
+  function playRingtoneBurst(){
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)return;
+    try{
+      if(!ringtoneAudioContext)ringtoneAudioContext=new AudioContextClass();
+      if(ringtoneAudioContext.state==="suspended")ringtoneAudioContext.resume().catch(()=>{});
+      const ctx=ringtoneAudioContext;
+      if(ctx.state!=="running")return;
+      [[880,0],[660,0.22]].forEach(([frequency,delay])=>{
+        const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+        oscillator.type="sine";oscillator.frequency.value=frequency;
+        gain.gain.setValueAtTime(0.0001,ctx.currentTime+delay);
+        gain.gain.exponentialRampToValueAtTime(0.12,ctx.currentTime+delay+0.025);
+        gain.gain.setValueAtTime(0.12,ctx.currentTime+delay+0.16);
+        gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+delay+0.23);
+        oscillator.connect(gain);gain.connect(ctx.destination);
+        oscillator.start(ctx.currentTime+delay);oscillator.stop(ctx.currentTime+delay+0.24);
+        ringtoneNodes.push(oscillator);
+        oscillator.onended=()=>{ringtoneNodes=ringtoneNodes.filter(node=>node!==oscillator);};
+      });
+    }catch(error){console.warn("Incoming call ringtone could not play:",error);}
+  }
+  function startIncomingRingtone(){
+    stopIncomingRingtone();playRingtoneBurst();
+    ringtoneInterval=setInterval(()=>{if(incomingCall&&!activeCall)playRingtoneBurst();else stopIncomingRingtone();},1800);
+  }
+  // Prepare audio after the first user interaction so browser autoplay rules are less likely to block ringing.
+  function primeCallAudio(){
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass||ringtoneAudioContext)return;
+    try{ringtoneAudioContext=new AudioContextClass();if(ringtoneAudioContext.state==="suspended")ringtoneAudioContext.resume().catch(()=>{});}catch{}
+    document.removeEventListener("pointerdown",primeCallAudio);
+    document.removeEventListener("keydown",primeCallAudio);
+  }
+  document.addEventListener("pointerdown",primeCallAudio,{once:true});
+  document.addEventListener("keydown",primeCallAudio,{once:true});
   function clearCallRingTimeout(){if(callRingTimeout){clearTimeout(callRingTimeout);callRingTimeout=null;}}
   function callPanelOpen(){const panel=$("teamCallPanel");panel.classList.remove("hidden");panel.classList.add("is-open");}
   function closeCallPanel(){if(incomingCall&&!activeCall){rejectIncomingCall();return;}const panel=$("teamCallPanel");panel.classList.add("hidden");panel.classList.remove("is-open");}
@@ -308,12 +350,12 @@
         const invite=message.payload;
         if(!invite||invite.toId!==session?.user?.id||invite.ownerId!==teamOwnerId||!invite.callId)return;
         if(activeCall||incomingCall){sendCallInvite(invite.fromId,{type:"call-state",ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",reason:"busy"}).catch(()=>{});return;}
-        incomingCall=invite;clearCallRingTimeout();callPanelOpen();$("callSetupArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.remove("hidden");
+        incomingCall=invite;clearCallRingTimeout();callPanelOpen();$("callSetupArea").classList.add("hidden");$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.remove("hidden");startIncomingRingtone();
         $("incomingCallName").textContent=invite.fromName||callMemberName(invite.fromId);$("incomingCallDetails").textContent=(invite.mode==="video"?"Incoming video call":"Incoming audio call")+" · "+$("incomingCallName").textContent;
         $("callStatusText").textContent="Incoming "+(invite.mode==="video"?"video":"audio")+" call";showCallError("");
         toast("Incoming "+(invite.mode==="video"?"video":"audio")+" call from "+(invite.fromName||"your team"));
         sendBrowserNotification("Incoming call · "+(invite.fromName||"Team member"),"Open ElectroStock to answer the "+invite.mode+" call.","electrostock-call-"+invite.callId);
-        callRingTimeout=setTimeout(()=>{if(!incomingCall||incomingCall.callId!==invite.callId)return;incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");$("callStatusText").textContent="Missed call";const who=invite.fromName||callMemberName(invite.fromId);const body="You missed an "+(invite.mode==="video"?"video":"audio")+" call from "+who+".";addNotification("Missed call · "+who,body,"call");toast(body);sendBrowserNotification("Missed call · "+who,body,"electrostock-missed-call-"+invite.callId);},30000);
+        callRingTimeout=setTimeout(()=>{if(!incomingCall||incomingCall.callId!==invite.callId)return;stopIncomingRingtone();incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");$("callStatusText").textContent="Missed call";const who=invite.fromName||callMemberName(invite.fromId);const body="You missed an "+(invite.mode==="video"?"video":"audio")+" call from "+who+".";addNotification("Missed call · "+who,body,"call");toast(body);sendBrowserNotification("Missed call · "+who,body,"electrostock-missed-call-"+invite.callId);},30000);
       }).subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("ElectroStock calling inbox channel:",status);});
   }
   async function startPairCallChannel(){
@@ -432,8 +474,12 @@
   function setCallActiveUI(){
     $("callSetupArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("activeCallArea").classList.remove("hidden");
     // Audio calls should not reserve or display the video surface.
-    $("activeCallArea").classList.toggle("audio-only",activeCall?.mode!=="video");
-    $("callStatusText").textContent=(activeCall?.mode==="video"?"Video":"Audio")+" call · "+callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
+    const audioOnly=activeCall?.mode!=="video";
+    $("activeCallArea").classList.toggle("audio-only",audioOnly);
+    $("audioCallContactName").textContent=callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
+    $("audioCallPlaceholder").classList.toggle("hidden",!audioOnly);
+    $("toggleCallCameraBtn").classList.toggle("hidden",audioOnly);
+    $("callStatusText").textContent=(audioOnly?"Audio":"Video")+" call · "+callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
     callPanelOpen();
   }
   async function beginTeamCall(mode){
@@ -450,13 +496,13 @@
     }catch(error){showCallError(error?.message||"Could not start the call.");cleanupTeamCall(false);$("callSetupArea").classList.remove("hidden");}
   }
   async function acceptIncomingCall(){
-    if(!incomingCall)return;clearCallRingTimeout();activeCall={...incomingCall,caller:false};incomingCall=null;
+    if(!incomingCall)return;clearCallRingTimeout();stopIncomingRingtone();activeCall={...incomingCall,caller:false};incomingCall=null;
     $("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.add("hidden");$("callStatusText").textContent="Connecting…";showCallError("");
     try{await ensureCallMedia();await startPairCallChannel();await sendPairCallState("accepted");setCallActiveUI();}
     catch(error){showCallError(error?.message||"Could not accept the call.");try{await sendCallInvite(activeCall?.fromId,{ownerId:teamOwnerId,callId:activeCall?.callId,fromId:session.user.id,toId:activeCall?.fromId,state:"rejected",type:"call-state"});}catch{}cleanupTeamCall(false);}
   }
   async function rejectIncomingCall(){
-    const invite=incomingCall;if(!invite)return;clearCallRingTimeout();incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    const invite=incomingCall;if(!invite)return;clearCallRingTimeout();stopIncomingRingtone();incomingCall=null;$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
     try{await sendCallInvite(invite.fromId,{ownerId:teamOwnerId,callId:invite.callId,fromId:session.user.id,toId:invite.fromId,state:"rejected",type:"call-state"});}catch(error){console.warn("Could not notify caller of declined call",error);}
     $("callStatusText").textContent="Call declined";refreshCallContacts();
   }
@@ -465,14 +511,14 @@
     cleanupTeamCall(false);
   }
   function cleanupTeamCall(keepPanel=false){
-    clearCallRingTimeout();stopCallDurationTimer();
+    clearCallRingTimeout();stopIncomingRingtone();stopCallDurationTimer();
     if(callPeerConnection){callPeerConnection.ontrack=null;callPeerConnection.onicecandidate=null;callPeerConnection.close();callPeerConnection=null;}
     if(localCallStream){localCallStream.getTracks().forEach(track=>track.stop());localCallStream=null;}
     callRemoteStream=null;callMicMuted=false;callCameraOff=false;
     $("localCallVideo").srcObject=null;$("remoteCallVideo").srcObject=null;
     $("toggleCallMicBtn").innerHTML='<i class="fa-solid fa-microphone" aria-hidden="true"></i><span>Mute</span>';$("toggleCallCameraBtn").innerHTML='<i class="fa-solid fa-video" aria-hidden="true"></i><span>Camera</span>';
     if(callPairChannel&&supabase){supabase.removeChannel(callPairChannel);callPairChannel=null;}
-    activeCall=null;incomingCall=null;$("activeCallArea").classList.add("hidden");$("activeCallArea").classList.remove("audio-only");$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    activeCall=null;incomingCall=null;$("activeCallArea").classList.add("hidden");$("activeCallArea").classList.remove("audio-only");$("audioCallPlaceholder").classList.add("hidden");$("toggleCallCameraBtn").classList.remove("hidden");$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
     $("callStatusText").textContent="Call ended";refreshCallContacts();
     if(!keepPanel){$("teamCallPanel").classList.add("hidden");$("teamCallPanel").classList.remove("is-open");}
   }
