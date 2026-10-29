@@ -354,7 +354,13 @@
   async function ensureCallMedia(){
     if(localCallStream)return localCallStream;
     if(!navigator.mediaDevices?.getUserMedia)throw new Error("Your browser does not support microphone/camera access. Open ElectroStock in an updated browser over HTTPS.");
-    try{localCallStream=await navigator.mediaDevices.getUserMedia({audio:true,video:activeCall?.mode==="video"});}
+    try{
+      const wantsVideo=activeCall?.mode==="video";
+      localCallStream=await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+        video:wantsVideo?{width:{ideal:640,max:640},height:{ideal:360,max:480},frameRate:{ideal:20,max:24},facingMode:"user"}:false
+      });
+    }
     catch(error){throw new Error(error?.name==="NotAllowedError"?"Allow microphone"+(activeCall?.mode==="video"?" and camera":"")+" access in your browser to make this call.":error?.message||"Could not access your microphone or camera.");}
     $("localCallVideo").srcObject=localCallStream;$("localCallVideo").classList.toggle("audio-only",activeCall?.mode!=="video");
     $("toggleCallCameraBtn").classList.toggle("hidden",activeCall?.mode!=="video");
@@ -364,11 +370,50 @@
     if(callPeerConnection)return callPeerConnection;
     const stream=await ensureCallMedia();
     callRemoteStream=new MediaStream();
-    callPeerConnection=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+    callPeerConnection=new RTCPeerConnection({
+      iceServers:[
+        {urls:"stun:stun.l.google.com:19302"},
+        {urls:"stun:stun.cloudflare.com:3478"}
+      ],
+      bundlePolicy:"max-bundle",
+      rtcpMuxPolicy:"require",
+      iceCandidatePoolSize:6
+    });
     stream.getTracks().forEach(track=>callPeerConnection.addTrack(track,stream));
+    // Keep video bitrate modest so calls remain usable on slower mobile networks.
+    if(activeCall?.mode==="video"){
+      callPeerConnection.getSenders().filter(sender=>sender.track?.kind==="video").forEach(async sender=>{
+        try{
+          const params=sender.getParameters();
+          params.encodings=params.encodings?.length?params.encodings:[{}];
+          params.encodings[0].maxBitrate=550000;
+          params.encodings[0].maxFramerate=20;
+          params.degradationPreference="maintain-framerate";
+          await sender.setParameters(params);
+        }catch(error){console.warn("Could not apply low-bandwidth video settings",error);}
+      });
+    }
     callPeerConnection.ontrack=event=>{(event.streams?.[0]?.getTracks()||[event.track]).forEach(track=>{if(!callRemoteStream.getTracks().some(t=>t.id===track.id))callRemoteStream.addTrack(track);});$("remoteCallVideo").srcObject=event.streams?.[0]||callRemoteStream;};
     callPeerConnection.onicecandidate=event=>{if(event.candidate)sendPairCallSignal("ice",{candidate:event.candidate}).catch(error=>console.warn("Could not send ICE candidate",error));};
-    callPeerConnection.onconnectionstatechange=()=>{if(!callPeerConnection)return;if(callPeerConnection.connectionState==="connected"){startCallDurationTimer();showCallError("");}else if(["failed","disconnected"].includes(callPeerConnection.connectionState)){showCallError("Video/audio connection is unstable. Check both users’ internet connections. If video keeps timing out, the call service may need a TURN relay server.");}};
+    let disconnectWarningTimer=null;
+    callPeerConnection.onconnectionstatechange=()=>{
+      const pc=callPeerConnection;if(!pc)return;
+      if(pc.connectionState==="connected"){
+        if(disconnectWarningTimer){clearTimeout(disconnectWarningTimer);disconnectWarningTimer=null;}
+        startCallDurationTimer();showCallError("");
+      }else if(pc.connectionState==="disconnected"){
+        // Brief network handoffs are common; do not show a failure instantly.
+        if(disconnectWarningTimer)clearTimeout(disconnectWarningTimer);
+        disconnectWarningTimer=setTimeout(()=>{
+          if(callPeerConnection===pc&&pc.connectionState==="disconnected"){
+            showCallError("Connection is weak. Try switching to a stronger Wi-Fi or mobile network. Audio-only calls use less data.");
+          }
+        },8000);
+      }else if(pc.connectionState==="failed"){
+        if(disconnectWarningTimer){clearTimeout(disconnectWarningTimer);disconnectWarningTimer=null;}
+        showCallError("Could not establish a stable connection. Try audio-only or switch networks. A TURN relay service may be needed on restricted networks.");
+      }
+    };
     return callPeerConnection;
   }
   async function createCallOffer(){
