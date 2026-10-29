@@ -360,5 +360,11 @@
 
 
 /* Audio calls have no video canvas: remove the empty dark video surface entirely. */
-.active-call-area.audio-only .call-video-grid{display:none!important}
-.active-call-area.audio-only .call-controls{margin-top:2px}
+.active-call-area.audio-only .call-video-grid{display:none!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important}
+.active-call-area.audio-only{min-height:0!important;height:auto!important;background:transparent!important;box-shadow:none!important}
+.active-call-area.audio-only .call-controls{margin-top:12px}
+.audio-call-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:150px;padding:14px 8px 20px;text-align:center;background:transparent!important;border:0!important;box-shadow:none!important;color:#eef3fb}
+.audio-call-placeholder.hidden{display:none!important}
+.audio-call-avatar{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:color-mix(in srgb,var(--purple) 22%,#111b2b);border:1px solid color-mix(in srgb,var(--purple) 55%,transparent);color:#fff;font-size:28px}
+.audio-call-placeholder strong{font-size:17px;font-weight:700}
+.audio-call-placeholder span{font-size:12px;color:#b9c6d9}
