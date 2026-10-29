@@ -386,6 +386,8 @@
   function stopCallDurationTimer(){if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null;}callStartedAt=null;const timer=$("callDurationTimer");if(timer){timer.textContent="00:00";timer.classList.add("hidden");}}
   function setCallActiveUI(){
     $("callSetupArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("activeCallArea").classList.remove("hidden");
+    // Audio calls should not reserve or display the video surface.
+    $("activeCallArea").classList.toggle("audio-only",activeCall?.mode!=="video");
     $("callStatusText").textContent=(activeCall?.mode==="video"?"Video":"Audio")+" call · "+callMemberName(activeCall?.caller?activeCall.toId:activeCall?.fromId);
     callPanelOpen();
   }
@@ -425,7 +427,7 @@
     $("localCallVideo").srcObject=null;$("remoteCallVideo").srcObject=null;
     $("toggleCallMicBtn").innerHTML='<i class="fa-solid fa-microphone" aria-hidden="true"></i><span>Mute</span>';$("toggleCallCameraBtn").innerHTML='<i class="fa-solid fa-video" aria-hidden="true"></i><span>Camera</span>';
     if(callPairChannel&&supabase){supabase.removeChannel(callPairChannel);callPairChannel=null;}
-    activeCall=null;incomingCall=null;$("activeCallArea").classList.add("hidden");$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
+    activeCall=null;incomingCall=null;$("activeCallArea").classList.add("hidden");$("activeCallArea").classList.remove("audio-only");$("incomingCallArea").classList.add("hidden");$("callSetupArea").classList.remove("hidden");
     $("callStatusText").textContent="Call ended";refreshCallContacts();
     if(!keepPanel){$("teamCallPanel").classList.add("hidden");$("teamCallPanel").classList.remove("is-open");}
   }
