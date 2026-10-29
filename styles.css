@@ -357,3 +357,8 @@
 .call-control-btn:not(.end-call-btn):focus-visible,.floating-call-window button:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
 .call-start-actions .btn.primary{background:var(--purple);border-color:var(--purple)}
 .call-start-actions .btn.primary:hover{background:color-mix(in srgb,var(--purple) 84%,black)}
+
+
+/* Audio calls have no video canvas: remove the empty dark video surface entirely. */
+.active-call-area.audio-only .call-video-grid{display:none!important}
+.active-call-area.audio-only .call-controls{margin-top:2px}
