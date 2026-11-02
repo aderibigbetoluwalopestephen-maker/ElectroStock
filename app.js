@@ -210,7 +210,7 @@
     companySettings={...defaultSettings,...(cs?.data||{})};
     logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
-    ensureDailySubscriptionReminder();
+    ensureDailySubscriptionReminder();\n    ensureWeeklyAndMonthlyMessages();
     renderAll();applyCompanyBranding();populateSettingsForm();
     await loadTeamData();
     await handleAttendanceLink();
@@ -576,6 +576,29 @@
     try{if(localStorage.getItem(key)===today)return;}catch{}
     addNotification("Subscription reminder","Your logo customization subscription is not active. Subscribe for ₦1,500/month to use your own business logo on ElectroStock and receipts.","subscription");
     try{localStorage.setItem(key,today);}catch{}
+  }
+  function ensureWeeklyAndMonthlyMessages(){
+    if(localMode||!session?.user?.id)return;
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,"0");
+    const monthKey=now.getFullYear()+"-"+pad(now.getMonth()+1);
+    const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+    const weekKey=monday.getFullYear()+"-"+pad(monday.getMonth()+1)+"-"+pad(monday.getDate());
+    const monthStorageKey="electrostock_new_month_"+session.user.id;
+    const weekStorageKey="electrostock_new_week_"+session.user.id;
+    try{
+      if(localStorage.getItem(monthStorageKey)!==monthKey){
+        addNotification("Welcome to a new month!","A fresh month is here. Review your stock, sales and business performance, set new goals, and keep growing with ElectroStock.","announcement");
+        localStorage.setItem(monthStorageKey,monthKey);
+        sendBrowserNotification("Welcome to a new month!","Review your stock, sales and business goals.","electrostock-new-month-"+monthKey);
+      }
+      if(localStorage.getItem(weekStorageKey)!==weekKey){
+        addNotification("A new week, a fresh start!","Wishing you a productive week. Check your inventory, follow up with customers, and stay on top of your sales.","announcement");
+        localStorage.setItem(weekStorageKey,weekKey);
+        sendBrowserNotification("A new week, a fresh start!","Check your inventory and make this week count.","electrostock-new-week-"+weekKey);
+      }
+    }catch(error){console.warn("Could not save the weekly/monthly welcome message:",error);}
   }
   function closeNotificationPanel(){
     $("notificationPanel")?.classList.add("hidden");
