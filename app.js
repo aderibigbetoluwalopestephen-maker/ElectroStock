@@ -4,6 +4,7 @@
   const configured = config.supabaseUrl && config.supabaseAnonKey &&
     !config.supabaseUrl.includes("YOUR_") && !config.supabaseAnonKey.includes("YOUR_");
   let supabase = null, session = null, products = [], movements = [], sales = [], posCart = [], localMode = !configured;
+  let currentRole="owner";
   const attendanceTokenFromUrl = new URLSearchParams(window.location.search).get("attendance");
   let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
   let proSubscription = {active:false, expires_at:null, error:null};
@@ -490,7 +491,7 @@
   function initializeMonthFilters(){const month=currentMonthKey();["salesMonthFilter","movementMonthFilter","attendanceMonthFilter","businessReportMonth"].forEach(id=>{const el=$(id);if(el&&!el.value)el.value=month;});}
   function renderMovements(){const month=$("movementMonthFilter")?.value||currentMonthKey();const monthly=movements.filter(m=>monthMatches(m.created_at,month));const added=monthly.filter(m=>Number(m.quantity_change)>0).reduce((sum,m)=>sum+Number(m.quantity_change),0);const sold=monthly.filter(m=>m.movement_type==="sale").reduce((sum,m)=>sum+Math.abs(Number(m.quantity_change)),0);const net=monthly.reduce((sum,m)=>sum+Number(m.quantity_change||0),0);$("monthlyStockAdded").textContent=added.toLocaleString("en-NG");$("monthlyStockSold").textContent=sold.toLocaleString("en-NG");$("monthlyStockNet").textContent=(net>0?"+":"")+net.toLocaleString("en-NG");const rows=monthly.slice(0,300);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
 
-  let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
+  let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null;
   let teamMessageChannel=null,chatUnreadCount=0,chatSeenInitialized=false;
   const seenChatMessageIds=new Set();
 
