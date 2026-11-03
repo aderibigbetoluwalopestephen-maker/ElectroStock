@@ -22,14 +22,17 @@ grant execute on function public.is_platform_admin() to authenticated;
 create or replace function public.get_platform_admin_overview()
 returns jsonb language plpgsql stable security definer
 set search_path = '' as $$
-declare result jsonb;
+declare result jsonb; support_count bigint := null;
 begin
   if not exists(select 1 from public.platform_admins where user_id = (select auth.uid())) then
     raise exception 'Not authorised' using errcode = '42501';
   end if;
-  execute 'select jsonb_build_object(''registered_accounts'', (select count(*) from auth.users), ''businesses'', (select count(*) from public.company_settings), ''sales_transactions'', (select count(*) from public.sales), ''support_tickets'', case when to_regclass(''public.support_tickets'') is null then null else (select count(*) from public.support_tickets) end)'
+  if to_regclass('public.support_tickets') is not null then
+    execute 'select count(*) from public.support_tickets' into support_count;
+  end if;
+  execute 'select jsonb_build_object(''registered_accounts'', (select count(*) from auth.users), ''businesses'', (select count(*) from public.company_settings), ''sales_transactions'', (select count(*) from public.sales))'
     into result;
-  return result;
+  return result || jsonb_build_object('support_tickets', support_count);
 end;
 $$;
 revoke all on function public.get_platform_admin_overview() from public;
