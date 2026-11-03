@@ -6,7 +6,7 @@
   let supabase = null, session = null, products = [], movements = [], sales = [], posCart = [], localMode = !configured;
   const attendanceTokenFromUrl = new URLSearchParams(window.location.search).get("attendance");
   let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
-  let logoSubscription = {active:false, expires_at:null, error:null};
+  let proSubscription = {active:false, expires_at:null, error:null};
   let teamDataInitialized=false, notificationRefreshInProgress=false;
   let isPlatformAdmin=false;
   let supportTickets=[], supportMessages=[], activeSupportTicketId=null, isSupportAdmin=false;
@@ -332,13 +332,13 @@
       supabase.from("stock_movements").select("*, products(name)").order("created_at",{ascending:false}).limit(300),
       supabase.from("sales").select("*").order("created_at",{ascending:false}).limit(1000),
       supabase.from("company_settings").select("*").eq("owner_id",teamOwnerId).maybeSingle(),
-      supabase.from("logo_subscriptions").select("status,expires_at").eq("owner_id",teamOwnerId).maybeSingle()
+      supabase.from("pro_subscriptions").select("status,expires_at").eq("owner_id",teamOwnerId).maybeSingle()
     ]);
     if(pr.error){products=[];toast("Products could not load: "+pr.error.message);}else products=pr.data||[];
     if(mv.error){movements=[];toast("Stock movements could not load: "+mv.error.message);}else movements=(mv.data||[]).map(m=>({...m,product_name:m.products?.name||"Deleted product"}));
     if(sv.error){sales=[];toast("Sales history needs attention: "+sv.error.message);}else sales=sv.data||[];
     companySettings={...defaultSettings,...(cs?.data||{})};
-    logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
+    proSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
     ensureDailySubscriptionReminder();
     ensureWeeklyAndMonthlyMessages();
@@ -350,6 +350,7 @@
   }
   async function saveProduct(data,id){
     if(!canManageProducts())return {error:{message:"Sales reps cannot add or edit store products. Ask the owner or a manager."}};
+    if(!id&&!hasActiveProSubscription()&&products.length>=50)return {error:{message:"Your Free plan includes up to 50 products. Upgrade to ElectroStock Pro for unlimited products."}};
     if(localMode){
       if(id){products=products.map(p=>p.id===id?{...p,...data,updated_at:new Date().toISOString()}:p);}
       else products.unshift({...data,id:crypto.randomUUID(),created_at:new Date().toISOString()});
@@ -365,7 +366,7 @@
     else {const {error}=await supabase.from("products").delete().eq("id",id);if(error){toast(error.message);return;}await loadCloud();}
     renderAll();toast("Product deleted.");
   }
-  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();}
+  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();updateProFeatureAccess();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
     const low=products.filter(p=>statusOf(p)==="low").length,out=products.filter(p=>statusOf(p)==="out").length;
@@ -701,7 +702,7 @@
     saveNotifications();renderNotifications();
   }
   function ensureDailySubscriptionReminder(){
-    if(localMode||currentRole!=="owner"||hasActiveLogoSubscription()||logoSubscription.error||!session?.user?.id)return;
+    if(localMode||currentRole!=="owner"||hasActiveProSubscription()||proSubscription.error||!session?.user?.id)return;
     const today=new Date().toLocaleDateString("en-CA");
     const key="electrostock_subscription_reminder_"+session.user.id;
     try{if(localStorage.getItem(key)===today)return;}catch{}
@@ -899,13 +900,13 @@
     $("attendanceStatus").textContent=open?"Clocked in since "+teamDate(open.clock_in):"Currently clocked out.";renderMyAttendance();
     $("attendanceQrAdmin").classList.toggle("hidden",currentRole!=="owner");
     $("inviteStaffForm").classList.toggle("hidden",!canManageStaff());
-    const premiumStaffPlan=hasActiveLogoSubscription();
+    const premiumStaffPlan=hasActiveProSubscription();
     const staffLimit=$("staffPlanLimit");
     if(staffLimit)staffLimit.textContent=premiumStaffPlan
-      ? "Premium active · "+teamMembers.length+" staff member"+(teamMembers.length===1?"":"s")+" added. You can add more staff."
-      : "Free plan · "+teamMembers.length+" of 2 staff members used. Subscribe to Premium to add more.";
+      ? "Pro active · "+teamMembers.length+" staff account"+(teamMembers.length===1?"":"s")+" in use. Unlimited staff accounts included."
+      : "Free plan · "+teamMembers.length+" of 1 included staff account used. Upgrade to Pro for unlimited staff.";
     const inviteButton=$("inviteStaffBtn");
-    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=2;inviteButton.disabled=false;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";inviteButton.classList.toggle("secondary",blocked);inviteButton.setAttribute("aria-label",blocked?"Open Premium upgrade options":"Invite staff");}
+    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=1;inviteButton.disabled=false;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";inviteButton.classList.toggle("secondary",blocked);inviteButton.setAttribute("aria-label",blocked?"Open Premium upgrade options":"Invite staff");}
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
   }
   function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));if(tab==="chat")openTeamChat();else closeTeamChat();}
@@ -914,7 +915,7 @@
   document.querySelectorAll("[data-team-tab]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.teamTab==="chat"){openTeamChat();return;}showTeamTab(b.dataset.teamTab);}));
   $("closeChatBtn").addEventListener("click",closeTeamChat);
   async function refreshTeam(){if(localMode){toast("Connect Supabase to use team features.");return;}await loadTeamData();}
-  $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";if(!hasActiveLogoSubscription()&&teamMembers.length>=2){m.textContent="Your Free plan allows up to 2 staff members. Open Company settings to upgrade to Premium.";toast("Opening Premium upgrade options…");switchView("settings");const subscriptionCard=$("logoSubscriptionCard");if(subscriptionCard)subscriptionCard.scrollIntoView({behavior:"smooth",block:"center"});return;}b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
+  $("inviteStaffForm").addEventListener("submit",async e=>{e.preventDefault();if(!canManageStaff())return;const b=$("inviteStaffBtn"),m=$("teamStaffMessage");m.textContent="";if(!hasActiveProSubscription()&&teamMembers.length>=1){m.textContent="Your Free plan includes the owner and 1 staff account. Upgrade to Pro for unlimited staff.";toast("Opening Premium upgrade options…");switchView("settings");const subscriptionCard=$("proSubscriptionCard");if(subscriptionCard)subscriptionCard.scrollIntoView({behavior:"smooth",block:"center"});return;}b.disabled=true;b.textContent="Inviting…";try{const z=await supabase.functions.invoke("invite-team-member",{body:{owner_id:teamOwnerId||session.user.id,display_name:$("staffFullName").value.trim(),email:$("staffEmail").value.trim().toLowerCase(),password:$("staffPassword").value,phone:$("staffPhone").value.trim()||null,role:$("staffRole").value}});if(z.error){let detail=z.error.message||"The Edge Function request failed.";try{const response=z.error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();if(raw){try{const payload=JSON.parse(raw);detail=payload.error||payload.message||raw;}catch{detail=raw;}}}}catch(parseErr){console.warn("Could not read Edge Function error response:",parseErr);}throw new Error(detail);}if(z.data?.error)throw new Error(z.data.error);$("inviteStaffForm").reset();m.textContent="Invitation sent. Ask staff to check email.";await loadTeamData();}catch(err){console.error("ElectroStock staff invitation failed:",err);m.textContent=err?.message||"Invite function failed. Open Supabase Edge Function logs for details.";}finally{b.disabled=false;b.textContent="Invite staff";}});
   $("teamChatForm").addEventListener("submit",async e=>{e.preventDefault();const message=$("teamChatText").value.trim();if(!message)return;const z=await supabase.from("team_messages").insert({owner_id:teamOwnerId||session.user.id,sender_id:session.user.id,message}).select("id");if(z.error){$("teamChatMessage").textContent=z.error.message;return;}if(z.data?.[0]?.id)seenChatMessageIds.add(z.data[0].id);$("teamChatText").value="";$("teamChatMessage").textContent="Message sent.";await loadTeamData();});
   $("refreshChatBtn").addEventListener("click",refreshTeam);
   // Let each user reposition the floating chat launcher; keep its location in this browser.
@@ -1063,18 +1064,18 @@
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
   // Support Centre ticket handlers are disabled while the page displays Coming Soon.
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports",superadmin:"Super Admin"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="superadmin"){if(!isPlatformAdmin){switchView("dashboard");toast("Access denied.");return;}loadSuperAdminDashboard();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
+  function switchView(view){if(view==="reports"&&!hasActiveProSubscription()){toast("Advanced Business Reports are available on ElectroStock Pro.");switchView("settings");return;}document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports",superadmin:"Super Admin"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="superadmin"){if(!isPlatformAdmin){switchView("dashboard");toast("Access denied.");return;}loadSuperAdminDashboard();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
   $("searchInput").addEventListener("input",renderProducts);$("categoryFilter").addEventListener("change",renderProducts);$("stockFilter").addEventListener("change",renderProducts);
-  $("exportBtn").addEventListener("click",exportInventory);
+  $("exportBtn").addEventListener("click",()=>{if(!hasActiveProSubscription()){toast("Inventory exports are available on ElectroStock Pro.");switchView("settings");return;}exportInventory();});
   $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
   $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Excel';e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
   $("salesMonthFilter").addEventListener("change",renderSales);
   $("businessReportMonth").addEventListener("change",renderReports);
-  $("exportReportsBtn").addEventListener("click",exportBusinessReport);
+  $("exportReportsBtn").addEventListener("click",()=>{if(!hasActiveProSubscription()){toast("Report exports are available on ElectroStock Pro.");return;}exportBusinessReport();});
   $("movementMonthFilter").addEventListener("change",renderMovements);
   $("attendanceMonthFilter").addEventListener("change",renderTeam);
   function openSaleForm(){switchView("pos");$("posSearch").focus();$("posMessage").textContent="Add products to the cart to start a sale.";}
@@ -1083,7 +1084,7 @@
   $("movementType").addEventListener("change",()=>{$("customerFieldWrap").classList.toggle("hidden",$("movementType").value!=="sale");});
   $("closeReceiptBtn").addEventListener("click",closeReceipt);
   $("printReceiptBtn").addEventListener("click",()=>window.print());
-  $("printInvoiceBtn").addEventListener("click",()=>{if(activeSalesDocumentData)showReceipt(activeSalesDocumentData,"invoice");window.print();});
+  $("printInvoiceBtn").addEventListener("click",()=>{if(!hasActiveProSubscription()){toast("Professional invoices are available on ElectroStock Pro.");switchView("settings");return;}if(activeSalesDocumentData)showReceipt(activeSalesDocumentData,"invoice");window.print();});
   $("receiptModal").addEventListener("click",e=>{if(e.target===$("receiptModal"))closeReceipt();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape")closeReceipt();});
   $("customerFieldWrap").classList.add("hidden");
@@ -1093,11 +1094,11 @@
     $("mobileCompanyName").textContent=name;$("footerCompanyName").textContent=name;$("receiptTitle").textContent=name;$("settingsPreviewName").textContent=name;
     const details=[companySettings.phone,companySettings.email,companySettings.address].filter(Boolean).join(" · ");$("receiptBusinessDetails").textContent=details;
     $("receiptFooterMessage").textContent=companySettings.receipt_footer||"Thank you for your patronage!";
-    const activeLogo=hasActiveLogoSubscription()?companySettings.logo_url:"";
+    const activeLogo=hasActiveProSubscription()?companySettings.logo_url:"";
     const logoMarkup=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';
     $("settingsLogoPreview").innerHTML=logoMarkup;$("receiptLogo").innerHTML=logoMarkup;
     ["authBrandLogo","sidebarBrandLogo","mobileBrandLogo"].forEach(id=>{const el=$(id);if(el)el.innerHTML=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';});
-    document.title=`${name} — Inventory Management`;updateLogoSubscriptionUI();
+    document.title=`${name} — Inventory Management`;updateProSubscriptionUI();
   }
   function populateSettingsForm(){
     if(!$('settingCompanyName'))return;
@@ -1121,331 +1122,29 @@
     if(error)return {error};
     const {data}=supabase.storage.from("company-logos").getPublicUrl(path);return {url:data.publicUrl,error:null};
   }
-  function hasActiveLogoSubscription(){
-    return !localMode && !!(logoSubscription.active && logoSubscription.expires_at && new Date(logoSubscription.expires_at)>new Date());
+  function hasActiveProSubscription(){
+    return !localMode && !!(proSubscription.active && proSubscription.expires_at && new Date(proSubscription.expires_at)>new Date());
   }
-  function updateLogoSubscriptionUI(){
-    const active=hasActiveLogoSubscription();
-    const input=$("settingLogoFile"),button=$("subscribeLogoBtn"),status=$("logoSubscriptionStatus"),help=$("logoUploadHelp");
+  function updateProFeatureAccess(){
+    const active=hasActiveProSubscription();
+    const nav=document.querySelector('.nav-item[data-view="reports"]');
+    if(nav)nav.classList.toggle("pro-locked",!active);
+  }
+  function updateProSubscriptionUI(){
+    const active=hasActiveProSubscription();
+    const input=$("settingLogoFile"),button=$("subscribeLogoBtn"),status=$("proSubscriptionStatus"),help=$("logoUploadHelp");
     if(input)input.disabled=!active;
-    if(button){button.textContent=active?"Subscription active":"Subscribe for ₦1,500/month";button.classList.toggle("secondary",active);}
-    if(status){
-      status.textContent=active
-        ? "Logo customization is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})+"."
-        : (localMode?"Logo subscriptions are available to registered accounts only.":logoSubscription.error?"Subscription status could not be verified. Refresh or contact support.":"An active ₦1,500/month subscription is required to customize your logo.");
-    }
-    if(help)help.textContent=active?"Subscription active. PNG, JPG or WEBP, maximum 2 MB.":"Subscribe for ₦1,500/month to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
+    if(button){button.textContent=active?"Pro subscription active":"Upgrade to Pro · ₦5,000/month";button.classList.toggle("secondary",active);}
+    if(status)status.textContent=active
+      ? "ElectroStock Pro is active until "+new Date(proSubscription.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})+"."
+      : (localMode?"Pro subscriptions are available to registered accounts only.":proSubscription.error?"Pro subscription status could not be verified. Refresh or contact support.":"Upgrade to ElectroStock Pro for unlimited products and staff, advanced reports, exports and custom business branding.");
+    if(help)help.textContent=active?"Pro active. PNG, JPG or WEBP, maximum 2 MB.":"Upgrade to Pro to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
   $("subscribeLogoBtn").addEventListener("click",()=>{
-    const status=$("logoSubscriptionStatus");
-    const say=(message)=>{
-      if(status)status.textContent=message;
-      try{toast(message);}catch(err){console.warn("Toast notification unavailable:",err);}
-    };
-    try{
-      say("Subscribe clicked. Checking payment setup…");
-      if(hasActiveLogoSubscription()){say("Your logo subscription is active until "+new Date(logoSubscription.expires_at).toLocaleDateString("en-NG")+".");return;}
-      if(localMode||!session?.user){say("Please sign in to a registered account before subscribing.");return;}
-      if(logoSubscription.error){say("Could not check subscription status: "+logoSubscription.error);return;}
-      if(!config.paystackPublicKey||!config.paystackPlanCode||config.paystackPublicKey.includes("YOUR_")||config.paystackPlanCode.includes("YOUR_")){say("Payment setup is incomplete. Check the Paystack public key and plan code in config.js.");return;}
-      if(!window.PaystackPop||typeof window.PaystackPop.setup!=="function"){say("Paystack checkout did not load. Refresh the page. If this continues, check whether the Paystack script is blocked.");return;}
-      say("Opening Paystack checkout…");
-      const handler=window.PaystackPop.setup({
-        key:config.paystackPublicKey,
-        email:session.user.email,
-        plan:config.paystackPlanCode,
-        ref:"ESLOGO-"+session.user.id.slice(0,8)+"-"+Date.now(),
-        metadata:{owner_id:session.user.id,feature:"logo_customization"},
-        callback:function(response){
-          say("Payment received. Verifying your subscription…");
-          (async function(){
-            try{
-              const result=await supabase.functions.invoke("verify-logo-subscription",{body:{reference:response.reference}});
-              if(result.error)throw new Error(result.error.message||"Verification service unavailable.");
-              if(!result.data?.active)throw new Error(result.data?.error||"Subscription was not activated.");
-              logoSubscription={active:true,expires_at:result.data.expires_at,error:null};
-              updateLogoSubscriptionUI();applyCompanyBranding();
-              say("Logo subscription activated.");
-            }catch(err){
-              console.error("Logo subscription verification failed:",err);
-              say("Payment verification failed. Keep this reference for support: "+response.reference);
-            }
-          })();
-        },
-        onClose:()=>{if(!hasActiveLogoSubscription())say("Checkout closed before payment was confirmed.");}
-      });
-      if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack could not initialize checkout.");
-      handler.openIframe();
-    }catch(err){
-      console.error("Paystack checkout error:",err);
-      say("Checkout could not open: "+(err?.message||"Unknown error"));
-    }
-  });
-  $("settingCompanyName").addEventListener("input",()=>$("settingsPreviewName").textContent=$("settingCompanyName").value.trim()||"Your company name");
-  $("settingLogoFile").addEventListener("change",()=>{const file=$("settingLogoFile").files[0];if(!file)return;if(!hasActiveLogoSubscription()){$("settingLogoFile").value="";$("settingsMessage").textContent="An active ₦1,500/month subscription is required to upload a logo.";return;}if(file.size>2*1024*1024){$("settingsMessage").textContent="Logo must be 2 MB or smaller.";$("settingLogoFile").value="";return;}const url=URL.createObjectURL(file);$("settingsLogoPreview").innerHTML=`<img src="${url}" alt="Logo preview">`;});
-  $("settingsForm").addEventListener("submit",async e=>{if(currentRole!=="owner"){e.preventDefault();toast("Only the store owner can change company settings.");return;}
-    e.preventDefault();const btn=$("saveSettingsBtn"),message=$("settingsMessage");message.textContent="";
-    const company_name=$("settingCompanyName").value.trim();if(!company_name){message.textContent="Company name is required.";return;}
-    const requestedLogo=$("settingLogoFile").files[0];
-    if(requestedLogo&&!hasActiveLogoSubscription()){message.textContent="An active ₦1,500/month subscription is required before uploading a logo.";return;}
-    btn.disabled=true;btn.textContent="Saving…";
-    let logo_url=companySettings.logo_url||"";const file=$("settingLogoFile").files[0];
-    if(file){const uploaded=await uploadCompanyLogo(file);if(uploaded.error){message.textContent=uploaded.error.message.includes("company-logos")?uploaded.error.message+" — run supabase/company_settings_migration.sql first.":uploaded.error.message;btn.disabled=false;btn.textContent="Save company settings";return;}logo_url=uploaded.url||"";}
-    const next={company_name,phone:$("settingPhone").value.trim(),email:$("settingEmail").value.trim(),address:$("settingAddress").value.trim(),currency:$("settingCurrency").value,logo_url,receipt_footer:$("settingReceiptFooter").value.trim()||"Thank you for your patronage!"};
-    if(localMode){companySettings={...defaultSettings,...next};saveLocal();}
-    else {const {error}=await supabase.from("company_settings").upsert({...next,owner_id:teamOwnerId||session.user.id},{onConflict:"owner_id"});if(error){message.textContent=error.message.includes("company_settings")?error.message+" — run supabase/company_settings_migration.sql in Supabase SQL Editor.":error.message;btn.disabled=false;btn.textContent="Save company settings";return;}companySettings={...defaultSettings,...next};}
-    btn.disabled=false;btn.textContent="Save company settings";$("settingLogoFile").value="";applyCompanyBranding();message.textContent="Company settings saved successfully.";toast("Company settings saved.");
-  });
-  const appearanceStorageKey = "electrostock_appearance_v1";
-  const defaultAppearance = { mode:"dark", accent:"#8b7cff" };
-  function readAppearance(){
-    try {
-      const saved=JSON.parse(localStorage.getItem(appearanceStorageKey)||"{}");
-      const accent="#8b7cff";
-      return {mode:saved.mode==="light"?"light":"dark",accent};
-    } catch { return {...defaultAppearance}; }
-  }
-  function applyAppearance(save=true){
-    const mode=appearance.mode;
-    document.documentElement.dataset.theme=mode;
-    document.documentElement.style.setProperty("--purple",appearance.accent);
-    document.documentElement.style.setProperty("--cyan",appearance.accent);
-    const toggle=$("themeToggleBtn");
-    if(toggle){
-      const isLight=mode==="light";
-      toggle.setAttribute("aria-pressed",String(isLight));
-      toggle.setAttribute("aria-label",isLight?"Switch to night mode":"Switch to day mode");
-      toggle.innerHTML=(isLight?'<i class="fa-solid fa-moon" aria-hidden="true"></i>':'<i class="fa-solid fa-sun" aria-hidden="true"></i>')+'<span>'+(isLight?"Switch to night mode":"Switch to day mode")+'</span>';
-    }
-    if(save){try{localStorage.setItem(appearanceStorageKey,JSON.stringify(appearance));}catch{}}
-  }
-  let appearance=readAppearance();
-  function setAppearanceMode(mode){
-    appearance.mode=mode==="light"?"light":"dark";
-    applyAppearance(true);
-  }
-  document.documentElement.dataset.theme=appearance.mode;
-  document.documentElement.style.setProperty("--purple",appearance.accent);
-  document.documentElement.style.setProperty("--cyan",appearance.accent);
-  $("themeToggleBtn")?.addEventListener("click",()=>setAppearanceMode(appearance.mode==="dark"?"light":"dark"));
-  applyAppearance(false);
-  function csvCell(value){const text=String(value??"");return '"'+text.replace(/"/g,'""')+'"';}
-  function normalizeImportHeader(value){return String(value??"").trim().toLowerCase().replace(/[()]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
-  async function importInventory(file){
-    if(!canManageProducts())throw new Error("Sales reps cannot import or add products. Ask the owner or a manager.");
-    if(!window.XLSX){throw new Error("Excel support could not load. Check your internet connection and refresh.");}
-    const buffer=await file.arrayBuffer();
-    const workbook=XLSX.read(buffer,{type:"array"});
-    const firstSheet=workbook.Sheets[workbook.SheetNames[0]];
-    if(!firstSheet)throw new Error("The workbook has no worksheet.");
-    const rows=XLSX.utils.sheet_to_json(firstSheet,{defval:"",raw:false});
-    if(!rows.length)throw new Error("The selected sheet is empty.");
-    const headerMap=new Map(Object.keys(rows[0]).map(k=>[normalizeImportHeader(k),k]));
-    const pick=(row,...names)=>{for(const name of names){const key=headerMap.get(normalizeImportHeader(name));if(key!==undefined&&row[key]!==""&&row[key]!==null)return row[key];}return "";};
-    const parsed=rows.map((row,index)=>{
-      const name=String(pick(row,"Product name","Product","Name","Item name","Item")).trim();
-      if(!name)return null;
-      const category=String(pick(row,"Category","Product category")||"Other").trim();
-      const number=(v,fallback=0)=>{const n=Number(String(v??"").replace(/[₦,$£€\s,]/g,""));return Number.isFinite(n)&&String(v).trim()!==""?n:fallback;};
-      const quantity=number(pick(row,"Quantity","Qty","Stock","Units"),0);
-      const purchase_price=number(pick(row,"Purchase price NGN","Purchase price","Cost price","Buy price","Buying price"),0);
-      const selling_price=number(pick(row,"Selling price NGN","Selling price","Sell price","Retail price","Price"),0);
-      const threshold=number(pick(row,"Low-stock threshold","Low stock threshold","Reorder level"),3);
-      if(quantity<0||purchase_price<0||selling_price<0||threshold<0)throw new Error("Row "+(index+2)+" has a negative quantity or price.");
-      return {name,brand:String(pick(row,"Brand")||"").trim()||null,model:String(pick(row,"Model")||"").trim()||null,category,purchase_price,selling_price,quantity,low_stock_threshold:threshold,image_url:String(pick(row,"Image URL","Image","Image link")||"").trim()||null,description:String(pick(row,"Description","Notes")||"").trim()||null};
-    }).filter(Boolean);
-    if(!parsed.length)throw new Error('No product rows found. Include a "Product name" column and at least one product row.');
-    if(localMode){
-      const now=new Date().toISOString();
-      products=[...parsed.map(p=>({...p,id:crypto.randomUUID(),created_at:now})),...products];
-      saveLocal();renderAll();
-    }else{
-      if(!session?.user?.id)throw new Error("Please sign in again before importing products.");
-      const batch=parsed.map(p=>({...p,owner_id:session.user.id}));
-      const {error}=await supabase.from("products").insert(batch);
-      if(error)throw new Error(error.message);
-      await loadCloud();
-    }
-    switchView("products");
-    toast("Imported "+parsed.length+" product"+(parsed.length===1?"":"s")+" successfully.");
-  }
-  function exportInventory(){
-    const currency=companySettings.currency||"NGN";const rows=products.map(p=>({"Product name":p.name,"Brand / maker":p.brand||"","Variant / size":p.model||"","Category":p.category||"Other",[`Purchase price (${currency})`]:Number(p.purchase_price||0),[`Selling price (${currency})`]:Number(p.selling_price||0),"Quantity":Number(p.quantity||0),"Low-stock threshold":Number(p.low_stock_threshold??3),"Stock status":statusText(statusOf(p)),[`Inventory cost value (${currency})`]:Number(p.purchase_price||0)*Number(p.quantity||0),"Image URL":p.image_url||"","Description":p.description||"","Created at":p.created_at||""}));
-    const fileDate=new Date().toISOString().slice(0,10);
-    if(window.XLSX){const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[{wch:28},{wch:18},{wch:18},{wch:18},{wch:22},{wch:22},{wch:12},{wch:18},{wch:18},{wch:26},{wch:34},{wch:42},{wch:24}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Inventory");XLSX.writeFile(wb,`ElectroStock-inventory-${fileDate}.xlsx`);toast("Excel inventory file downloaded.");return;}
-    const headers=Object.keys(rows[0]||{"Product name":""});const csv="\uFEFF"+[headers,...rows.map(r=>headers.map(h=>r[h]))].map(row=>row.map(csvCell).join(",")).join("\r\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`ElectroStock-inventory-${fileDate}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Inventory exported as a CSV file for Excel.");
-  }
-  let activeSalesDocument="receipt", activeSalesDocumentData=null;
-  function showReceipt(sale,documentType="receipt"){
-    activeSalesDocumentData=sale;activeSalesDocument=documentType;
-    const now=new Date(sale.created_at||new Date());
-    const items=Array.isArray(sale.items)&&sale.items.length?sale.items:[sale];
-    applyCompanyBranding();
-    const receiptRef=sale.receipt_number||items[0]?.receipt_number||"—";
-    const isInvoice=documentType==="invoice";
-    $("receiptModal").querySelector(".receipt-card").classList.toggle("invoice-mode",isInvoice);
-    $("receiptDocumentType").textContent=isInvoice?"SALES INVOICE":"SALES RECEIPT";
-    $("receiptSubtitle").textContent=isInvoice?"Invoice for goods sold":"Thank you for your purchase";
-    $("receiptNumberLabel").textContent=isInvoice?"Invoice no.":"Receipt no.";
-    $("receiptNumber").textContent=isInvoice?(receiptRef==="—"?"—":"INV-"+receiptRef):receiptRef;
-    $("receiptTotalLabel").textContent=isInvoice?"INVOICE TOTAL":"TOTAL PAID";
-    $("printInvoiceBtn").classList.toggle("secondary",!isInvoice);
-    $("printInvoiceBtn").classList.toggle("primary",isInvoice);
-    $("printReceiptBtn").classList.toggle("secondary",isInvoice);
-    $("printReceiptBtn").classList.toggle("primary",!isInvoice);
-    $("receiptDate").textContent=now.toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});
-    $("receiptCustomer").textContent=sale.customer_name||items[0]?.customer_name||"Walk-in customer";
-    const payment=String(sale.payment_method||items[0]?.payment_method||"cash").replace(/^./,c=>c.toUpperCase());
-    $("receiptPaymentMethod").textContent=isInvoice?"Paid · "+payment:payment;
-    $("receiptItems").innerHTML=items.map(item=>'<div class="receipt-item"><div><strong>'+esc(item.product_name||"Product")+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_selling_price)+'</small></div><strong>'+money(item.total_amount)+'</strong></div>').join("");
-    const total=Number(sale.total_amount??items.reduce((sum,item)=>sum+Number(item.total_amount||0),0));
-    $("receiptTotal").textContent=money(total);
-    $("receiptModal").classList.remove("hidden");document.body.style.overflow="hidden";
-  }
-  function reportSalesForMonth(){
-    const month=$("businessReportMonth")?.value||currentMonthKey();
-    return sales.filter(s=>monthMatches(s.created_at,month));
-  }
-  function renderReports(){
-    const rows=reportSalesForMonth();
-    const revenue=rows.reduce((sum,s)=>sum+Number(s.total_amount||0),0);
-    const profit=rows.reduce((sum,s)=>sum+Number(s.gross_profit||0),0);
-    const units=rows.reduce((sum,s)=>sum+Number(s.quantity||0),0);
-    const transactions=new Set(rows.map(s=>s.transaction_ref||s.receipt_number||s.id)).size;
-    $("reportRevenue").textContent=money(revenue);
-    $("reportProfit").textContent=money(profit);
-    $("reportTransactions").textContent=transactions.toLocaleString("en-NG");
-    $("reportUnits").textContent=units.toLocaleString("en-NG");
-    const days={};
-    rows.forEach(s=>{const d=new Date(s.created_at);if(Number.isNaN(d.getTime()))return;const key=d.getDate();days[key]=(days[key]||0)+Number(s.total_amount||0);});
-    const max=Math.max(1,...Object.values(days));
-    const dayCount=(()=>{const [y,m]=($("businessReportMonth").value||currentMonthKey()).split("-").map(Number);return new Date(y,m,0).getDate();})();
-    $("reportDailyChart").innerHTML=Array.from({length:dayCount},(_,i)=>{const day=i+1,value=days[day]||0;return '<div class="report-day-row"><span>'+day+'</span><div class="report-bar-track"><i style="width:'+Math.max(0,(value/max)*100)+'%"></i></div><strong>'+money(value)+'</strong></div>';}).join("");
-    const payments={};
-    rows.forEach(s=>{const method=String(s.payment_method||"Other").replace(/^./,c=>c.toUpperCase());payments[method]=(payments[method]||0)+Number(s.total_amount||0);});
-    const paymentEntries=Object.entries(payments).sort((a,b)=>b[1]-a[1]);
-    $("reportPayments").innerHTML=paymentEntries.length?paymentEntries.map(([name,value])=>'<div class="report-payment-row"><span>'+esc(name)+'</span><strong>'+money(value)+'</strong></div>').join(""):'<p class="muted">No payment data for this period.</p>';
-    const productsByName={};
-    rows.forEach(s=>{const name=s.product_name||"Unnamed product";if(!productsByName[name])productsByName[name]={quantity:0,revenue:0,profit:0};productsByName[name].quantity+=Number(s.quantity||0);productsByName[name].revenue+=Number(s.total_amount||0);productsByName[name].profit+=Number(s.gross_profit||0);});
-    const top=Object.entries(productsByName).sort((a,b)=>b[1].quantity-a[1].quantity).slice(0,10);
-    $("reportTopProducts").innerHTML=top.map(([name,v])=>'<tr><td><strong>'+esc(name)+'</strong></td><td>'+v.quantity.toLocaleString("en-NG")+'</td><td>'+money(v.revenue)+'</td><td>'+money(v.profit)+'</td></tr>').join("");
-    $("reportEmpty").classList.toggle("hidden",rows.length>0);
-  }
-  function exportBusinessReport(){
-    const rows=reportSalesForMonth(),month=$("businessReportMonth").value||currentMonthKey();
-    const totals={Revenue:rows.reduce((s,x)=>s+Number(x.total_amount||0),0),"Gross profit":rows.reduce((s,x)=>s+Number(x.gross_profit||0),0),"Units sold":rows.reduce((s,x)=>s+Number(x.quantity||0),0),Transactions:new Set(rows.map(x=>x.transaction_ref||x.receipt_number||x.id)).size};
-    const productMap={};rows.forEach(s=>{const n=s.product_name||"Unnamed product";if(!productMap[n])productMap[n]={units:0,revenue:0,profit:0};productMap[n].units+=Number(s.quantity||0);productMap[n].revenue+=Number(s.total_amount||0);productMap[n].profit+=Number(s.gross_profit||0);});
-    const data=[["ElectroStock Business Report",month],[],["SUMMARY","VALUE"],...Object.entries(totals),[],["PRODUCT","UNITS SOLD","REVENUE","GROSS PROFIT"],...Object.entries(productMap).map(([n,v])=>[n,v.units,v.revenue,v.profit])];
-    const csv="\uFEFF"+data.map(row=>row.map(csvCell).join(",")).join("\r\n");
-    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download="ElectroStock-business-report-"+month+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Business report exported for Excel.");
-  }
-  function renderSales(){
-    const today=new Date();const isToday=s=>{const d=new Date(s.created_at);return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();};
-    const todays=sales.filter(isToday);
-    const selectedMonth=$("salesMonthFilter")?.value||currentMonthKey();
-    const monthSales=sales.filter(s=>monthMatches(s.created_at,selectedMonth));
-    const groups=new Map();
-    monthSales.forEach(s=>{
-      const key=s.transaction_ref||s.receipt_number||s.id;
-      if(!groups.has(key))groups.set(key,{...s,items:[],total_amount:0,gross_profit:0,quantity:0});
-      const group=groups.get(key);group.items.push(s);group.total_amount+=Number(s.total_amount||0);group.gross_profit+=Number(s.gross_profit||0);group.quantity+=Number(s.quantity||0);
-      if(new Date(s.created_at||0)<new Date(group.created_at||0))group.created_at=s.created_at;
-    });
-    const receipts=[...groups.values()];
-    const todayGroups=new Map();todays.forEach(s=>{const k=s.transaction_ref||s.receipt_number||s.id;if(!todayGroups.has(k))todayGroups.set(k,[]);todayGroups.get(k).push(s);});
-    $("salesTodayCount").textContent=todayGroups.size;
-    $("salesTodayRevenue").textContent=money(todays.reduce((sum,s)=>sum+Number(s.total_amount||0),0));
-    $("salesTodayProfit").textContent=money(todays.reduce((sum,s)=>sum+Number(s.gross_profit||0),0));
-    const q=($("salesSearch")?.value||"").trim().toLowerCase();
-    const list=receipts.filter(s=>[s.receipt_number,s.transaction_ref,s.customer_name,s.note,...s.items.map(i=>i.product_name)].join(" ").toLowerCase().includes(q));
-    $("salesTable").innerHTML=list.map(s=>'<tr><td>'+fmtDate(s.created_at)+'</td><td><strong>'+esc(s.receipt_number||s.transaction_ref||"—")+'</strong></td><td>'+esc(s.items.map(i=>i.product_name).filter(Boolean).join(", ")||"Deleted product")+'</td><td>'+esc(s.customer_name||"Walk-in")+'</td><td>'+s.quantity+'</td><td>'+money(s.items[0]?.unit_selling_price||0)+'</td><td><strong>'+money(s.total_amount)+'</strong></td><td>'+money(s.gross_profit)+'</td><td><button class="mini-btn" data-reprint="'+esc(String(s.id))+'">Reprint</button></td></tr>').join("");
-    $("emptySales").classList.toggle("hidden",list.length>0);
-    $("salesTable").querySelectorAll("[data-reprint]").forEach(b=>b.addEventListener("click",()=>{const sale=list.find(x=>String(x.id)===b.dataset.reprint);if(sale)showReceipt(sale);}));
-  }
-  function closeReceipt(){$("receiptModal").classList.add("hidden");document.body.style.overflow="";}
-  function posCartDetails(){
-    return posCart.map(line=>{const p=products.find(x=>String(x.id)===String(line.product_id));return p?{...line,product:p,quantity:Number(line.quantity),lineTotal:Number(p.selling_price||0)*Number(line.quantity)}:null;}).filter(Boolean);
-  }
-  function renderPos(){
-    const query=($("posSearch")?.value||"").trim().toLowerCase();
-    const matches=products.filter(p=>(Number(p.quantity)||0)>0&&[p.name,p.brand,p.model,p.category].join(" ").toLowerCase().includes(query)).slice(0,40);
-    $("posProductResults").innerHTML=matches.length?matches.map(p=>'<article class="pos-product"><div class="pos-product-info"><strong>'+esc(p.name)+'</strong><small>'+esc([p.brand,p.model,p.category].filter(Boolean).join(" · ")||"Product")+'</small><span>'+money(p.selling_price)+' · '+Number(p.quantity)+' in stock</span></div><button type="button" class="btn secondary pos-add-btn" data-add-pos="'+esc(String(p.id))+'">Add</button></article>').join(""):'<div class="empty-state"><h3>No available products found</h3><p>Try another search or add stock to your catalogue.</p></div>';
-    const details=posCartDetails();
-    $("posCartCount").textContent=details.reduce((sum,line)=>sum+line.quantity,0);
-    $("posCartItems").innerHTML=details.length?details.map(line=>'<div class="pos-cart-item"><div class="pos-cart-item-main"><strong>'+esc(line.product.name)+'</strong><small>'+money(line.product.selling_price)+' each</small><strong>'+money(line.lineTotal)+'</strong></div><div class="pos-quantity-controls"><button type="button" aria-label="Decrease quantity" data-pos-qty="-1" data-pos-id="'+esc(String(line.product_id))+'">−</button><span>'+line.quantity+'</span><button type="button" aria-label="Increase quantity" data-pos-qty="1" data-pos-id="'+esc(String(line.product_id))+'" '+(line.quantity>=Number(line.product.quantity)?"disabled":"")+'>+</button><button type="button" class="pos-remove" data-pos-remove="'+esc(String(line.product_id))+'">Remove</button></div></div>').join(""):'<div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div>';
-    const total=details.reduce((sum,line)=>sum+line.lineTotal,0);
-    $("posSubtotal").textContent=money(total);$("posTotal").textContent=money(total);
-    $("posCompleteBtn").disabled=!details.length;
-  }
-  $("posSearch").addEventListener("input",renderPos);
-  $("posProductResults").addEventListener("click",e=>{
-    const button=e.target.closest("[data-add-pos]");if(!button)return;
-    const id=button.dataset.addPos,p=products.find(x=>String(x.id)===String(id));if(!p)return;
-    const line=posCart.find(x=>String(x.product_id)===String(id));
-    if(line){if(line.quantity>=Number(p.quantity)){toast("No more stock is available for "+p.name+".");return;}line.quantity++;}
-    else posCart.push({product_id:p.id,quantity:1});
-    $("posMessage").textContent="";renderPos();
-  });
-  $("posCartItems").addEventListener("click",e=>{
-    const remove=e.target.closest("[data-pos-remove]"),qty=e.target.closest("[data-pos-qty]");
-    if(remove){posCart=posCart.filter(x=>String(x.product_id)!==String(remove.dataset.posRemove));renderPos();return;}
-    if(qty){const line=posCart.find(x=>String(x.product_id)===String(qty.dataset.posId)),p=products.find(x=>String(x.id)===String(qty.dataset.posId));if(!line||!p)return;
-      const next=line.quantity+Number(qty.dataset.posQty);if(next<1)posCart=posCart.filter(x=>String(x.product_id)!==String(qty.dataset.posId));else if(next<=Number(p.quantity))line.quantity=next;else toast("Quantity exceeds available stock.");renderPos();}
-  });
-  $("clearPosCartBtn").addEventListener("click",()=>{posCart=[];$("posMessage").textContent="";renderPos();});
-  $("posCheckoutForm").addEventListener("submit",async e=>{
-    e.preventDefault();const details=posCartDetails(),message=$("posMessage"),button=$("posCompleteBtn");
-    if(!details.length){message.textContent="Add at least one product to the cart.";return;}
-    for(const line of details){if(line.quantity<1||line.quantity>Number(line.product.quantity)){message.textContent="Stock changed for "+line.product.name+". Refresh and review the cart.";return;}}
-    const customer=$("posCustomer").value.trim()||"Walk-in customer",note=$("posNote").value.trim(),paymentMethod=$("posPaymentMethod").value;
-    button.disabled=true;button.textContent="Processing sale…";message.textContent="";
-    try{
-      let receipt;
-      if(localMode){
-        const createdAt=new Date().toISOString(),receiptNo="ES-"+createdAt.replace(/[-:TZ.]/g,"").slice(0,14)+"-"+Math.random().toString(36).slice(2,8).toUpperCase();
-        const lines=details.map(line=>{const p=line.product,qty=line.quantity;return{id:crypto.randomUUID(),owner_id:session?.user?.id||null,product_id:p.id,product_name:p.name,brand:p.brand||null,model:p.model||null,quantity:qty,unit_purchase_price:Number(p.purchase_price||0),unit_selling_price:Number(p.selling_price||0),total_amount:Number(p.selling_price||0)*qty,gross_profit:(Number(p.selling_price||0)-Number(p.purchase_price||0))*qty,customer_name:customer,note:note||null,receipt_number:receiptNo,transaction_ref:receiptNo,payment_method:paymentMethod,created_at:createdAt};});
-        for(const line of details){const p=line.product;products=products.map(x=>String(x.id)===String(p.id)?{...x,quantity:Number(x.quantity)-line.quantity}:x);movements.unshift({id:crypto.randomUUID(),product_id:p.id,product_name:p.name,movement_type:"sale",quantity_change:-line.quantity,note:"Receipt: "+receiptNo+" | "+paymentMethod,created_at:createdAt});}
-        sales.unshift(...lines);saveLocal();
-        receipt={receipt_number:receiptNo,transaction_ref:receiptNo,customer_name:customer,payment_method:paymentMethod,created_at:createdAt,total_amount:lines.reduce((s,x)=>s+x.total_amount,0),gross_profit:lines.reduce((s,x)=>s+x.gross_profit,0),items:lines};
-      }else{
-        const {data,error}=await supabase.rpc("record_sale_cart",{p_items:details.map(line=>({product_id:line.product.id,quantity:line.quantity})),p_customer_name:customer,p_note:note||null,p_payment_method:paymentMethod});
-        if(error)throw error;
-        receipt=data;await loadCloud();
-      }
-      posCart=[];$("posCustomer").value="";$("posNote").value="";renderAll();renderPos();
-      message.textContent="Sale recorded successfully.";toast("Sale recorded and stock updated.");showReceipt(receipt);switchView("sales");
-    }catch(error){message.textContent=error?.message||"Could not complete the sale. Please try again.";}
-    finally{button.textContent="Complete sale";renderPos();}
-  });
-  $("refreshBtn").addEventListener("click",async()=>{if(localMode)readLocal();else await loadCloud();renderAll();toast("Inventory refreshed.");});
-  $("enableNotificationsBtn").addEventListener("click",()=>{
-    const panel=$("notificationPanel"),willOpen=panel.classList.contains("hidden");
-    panel.classList.toggle("hidden",!willOpen);
-    $("enableNotificationsBtn").setAttribute("aria-expanded",String(willOpen));
-    if(willOpen){notificationItems.forEach(n=>n.read=true);unreadNotificationCount=0;saveNotifications();renderNotifications();}
-  });
-  $("allowBrowserNotificationsBtn").addEventListener("click",requestBrowserNotifications);
-  $("clearNotificationsBtn").addEventListener("click",()=>{notificationItems.length=0;unreadNotificationCount=0;saveNotifications();renderNotifications();});
-  $("notificationList").addEventListener("click",e=>{
-    const item=e.target.closest("[data-notification-index]");if(!item)return;
-    const notification=notificationItems[Number(item.dataset.notificationIndex)];
-    if(!notification)return;
-    notification.read=true;unreadNotificationCount=notificationItems.filter(n=>!n.read).length;saveNotifications();renderNotifications();
-    if(notification.kind==="subscription"){
-      closeNotificationPanel();
-      if(currentRole!=="owner"){toast("Ask the store owner to manage the subscription.");return;}
-      switchView("settings");
-      const card=$("logoSubscriptionCard");
-      if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
-      if(hasActiveLogoSubscription()){
-        toast("Your logo subscription is already active.");
-      }else{
-        // Navigate to the subscription card only. Do not trigger Paystack programmatically:
-        // browsers can open a blank checkout page when a popup is launched this way.
-        toast("Subscription options are ready. Select Subscribe to continue to secure checkout.");
-      }
-    }
+    const message="ElectroStock Pro costs ₦5,000/month. Online Pro checkout is not connected yet, so no payment will be taken here. Contact support or use the Super Admin dashboard for a manual Pro grant while Paystack Pro setup is completed.";
+    const status=$("proSubscriptionStatus");
+    if(status)status.textContent=message;
+    toast("Pro checkout is not connected yet. No payment has been taken.");
   });
   document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
 
