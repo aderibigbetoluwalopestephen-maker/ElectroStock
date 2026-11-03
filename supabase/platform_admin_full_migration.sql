@@ -61,7 +61,7 @@ begin
    return jsonb_build_object('accounts',v);
  elsif p_section='subscriptions' then
    if to_regclass('public.logo_subscriptions') is null then return jsonb_build_object('subscriptions','[]'::jsonb); end if;
-   execute 'select coalesce(jsonb_agg(jsonb_build_object(''user_id'',u.id,''email'',u.email,''business_name'',coalesce(cs.company_name,''Not set''),''status'',ls.status,''expires_at'',ls.expires_at,''reference'',ls.paystack_reference,''updated_at'',ls.updated_at) order by ls.updated_at desc),''[]''::jsonb) from public.logo_subscriptions ls join auth.users u on u.id=ls.owner_id left join public.company_settings cs on cs.owner_id=u.id' into v;
+   execute 'select coalesce(jsonb_agg(jsonb_build_object(''user_id'',u.id,''email'',u.email,''business_name'',coalesce(cs.company_name,''Not set''),''status'',coalesce(ls.status,''inactive''),''expires_at'',ls.expires_at,''updated_at'',ls.updated_at) order by u.created_at desc),''[]''::jsonb) from auth.users u left join public.logo_subscriptions ls on ls.owner_id=u.id left join public.company_settings cs on cs.owner_id=u.id' into v;
    return jsonb_build_object('subscriptions',v);
  elsif p_section='support' then
    if to_regclass('public.support_tickets') is null then return jsonb_build_object('tickets','[]'::jsonb); end if;
@@ -109,6 +109,16 @@ begin
    insert into public.platform_audit_logs(admin_user_id,action,target_user_id,details)
    values(auth.uid(),p_action,v_target,jsonb_build_object('reason',v_reason));
    return jsonb_build_object('success',true,'status',v_status);
+ elsif p_action='grant_logo_subscription' then
+   v_target := (p_payload->>'user_id')::uuid;
+   if v_target is null or not exists(select 1 from auth.users where id=v_target) then raise exception 'Account not found.'; end if;
+   v_expiry := now() + interval '30 days';
+   insert into public.logo_subscriptions(owner_id,status,expires_at,updated_at)
+   values(v_target,'active',v_expiry,now())
+   on conflict(owner_id) do update set status='active',expires_at=excluded.expires_at,updated_at=now();
+   insert into public.platform_audit_logs(admin_user_id,action,target_user_id,details)
+   values(auth.uid(),'grant_logo_subscription',v_target,jsonb_build_object('expires_at',v_expiry,'duration_days',30,'manual_grant',true));
+   return jsonb_build_object('success',true,'status','active','expires_at',v_expiry);
  elsif p_action='update_subscription' then
    v_target := (p_payload->>'user_id')::uuid;
    v_status := p_payload->>'status';
