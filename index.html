@@ -196,22 +196,33 @@
 </section>
 <section id="supportView" class="view hidden">
   <div class="section-intro">
-    <div>
-      <p class="eyebrow">CUSTOMER CARE</p>
-      <h1>Support centre</h1>
-      <p class="muted">We're preparing something helpful for you.</p>
-    </div>
+    <div><p class="eyebrow">CUSTOMER CARE</p><h1>Support centre</h1><p class="muted">Send a complaint or request and follow the response from ElectroStock support.</p></div>
   </div>
-  <section class="panel glass" style="max-width:760px;margin:24px auto;padding:48px 24px;text-align:center;">
-    <div style="font-size:56px;line-height:1.2;color:var(--accent,#22a06b);margin-bottom:20px;" aria-hidden="true">
-      <i class="fa-solid fa-gear fa-spin"></i>
+  <div class="support-layout">
+    <section class="panel glass support-compose" id="supportComposePanel">
+      <div class="panel-heading"><div><h3>Submit a support request</h3><p class="muted">Describe the issue clearly so our team can help.</p></div></div>
+      <form id="supportCreateForm" class="support-form">
+        <label>Subject<input id="supportSubject" maxlength="140" required placeholder="e.g. Unable to add staff"></label>
+        <div class="form-grid">
+          <label>Category<select id="supportCategory"><option>Account access</option><option>Inventory and products</option><option>Sales and payments</option><option>Staff and permissions</option><option>Subscription</option><option>Bug or technical issue</option><option>Other</option></select></label>
+          <label>Priority<select id="supportPriority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+        </div>
+        <label>Describe your complaint<textarea id="supportInitialMessage" rows="5" maxlength="5000" required placeholder="Tell us what happened and what you expected…"></textarea></label>
+        <button class="btn primary" id="supportCreateBtn" type="submit">Submit request</button>
+        <p class="form-message" id="supportFormMessage" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="panel glass">
+      <div class="panel-heading"><div><h3 id="supportListHeading">Your support requests</h3><p class="muted" id="supportListDescription">Review request status and support replies.</p></div><button type="button" class="btn secondary small" onclick="document.getElementById('supportTicketList').dispatchEvent(new Event('refresh-support'))">Refresh</button></div>
+      <div id="supportTicketList"><p class="muted">Your support requests will appear here.</p></div>
+    </section>
+  </div>
+  <section class="panel glass support-conversation hidden" id="supportConversationPanel">
+    <div class="panel-heading"><div><p class="eyebrow" id="supportTicketNumber">REQUEST</p><h3 id="supportConversationTitle">Support conversation</h3><p class="muted" id="supportConversationMeta"></p></div>
+      <label class="support-admin-status hidden" id="supportAdminStatusWrap">Ticket status<select id="supportAdminStatus"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label>
     </div>
-    <h2 style="margin:0 0 12px;">Coming Soon</h2>
-    <p class="muted" style="max-width:480px;margin:0 auto 24px;line-height:1.7;">The ElectroStock Support Centre is currently being prepared. Please contact us by email if you need assistance.</p>
-    <a href="mailto:electrostock.zyx@gmail.com" style="display:inline-flex;align-items:center;gap:10px;font-weight:600;color:var(--accent,#22a06b);text-decoration:none;overflow-wrap:anywhere;">
-      <i class="fa-solid fa-envelope" aria-hidden="true"></i>
-      electrostock.zyx@gmail.com
-    </a>
+    <div id="supportConversationMessages" class="support-messages"></div>
+    <form id="supportReplyForm" class="support-reply-form"><label>Reply / add information<textarea id="supportReplyText" rows="3" maxlength="5000" required placeholder="Write your message…"></textarea></label><div class="support-reply-actions"><p id="supportReplyMessage" class="form-message" aria-live="polite"></p><button class="btn primary" id="supportReplyBtn" type="submit">Send message</button></div></form>
   </section>
 </section>
       <section id="settingsView" class="view hidden">
