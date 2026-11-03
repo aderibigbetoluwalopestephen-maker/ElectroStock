@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z5";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -32,7 +34,7 @@ Deno.serve(async (req) => {
   if(Number(tx.amount)!==500000||tx.currency!=="NGN") return reply({error:"The verified payment amount or currency does not match the Pro plan."},402);
   if(tx.metadata?.feature!=="electrostock_pro"||tx.metadata?.owner_id!==user.id) return reply({error:"This payment reference does not belong to your ElectroStock account."},403);
   const plan=tx.plan_object?.plan_code||tx.plan;
-  if(plan!==Deno.env.get("PAYSTACK_PRO_PLAN_CODE")) return reply({error:"The payment is not linked to the ElectroStock Pro recurring plan."},402);
+  if(plan!==PRO_PLAN_CODE) return reply({error:"The payment is not linked to the ElectroStock Pro recurring plan."},402);
 
   const admin=createClient(url,service);
   const {data:existing}=await admin.from("pro_subscription_payments").select("reference").eq("reference",reference).maybeSingle();
