@@ -71,7 +71,7 @@
         plan:config.paystackProPlanCode,
         ref:"ESP_"+session.user.id.replace(/-/g,"")+"_"+Date.now(),
         metadata:{feature:"electrostock_pro",owner_id:session.user.id,plan_code:config.paystackProPlanCode},
-        callback:async(response)=>{
+        callback:function(response){
           setStatus("Payment received. Verifying securely…");
           try{
             if(!response?.reference)throw new Error("Paystack did not return a payment reference.");
