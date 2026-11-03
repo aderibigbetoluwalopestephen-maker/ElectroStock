@@ -951,6 +951,7 @@
   $("movementType").addEventListener("change",()=>{$("customerFieldWrap").classList.toggle("hidden",$("movementType").value!=="sale");});
   $("closeReceiptBtn").addEventListener("click",closeReceipt);
   $("printReceiptBtn").addEventListener("click",()=>window.print());
+  $("printInvoiceBtn").addEventListener("click",()=>{if(activeSalesDocumentData)showReceipt(activeSalesDocumentData,"invoice");window.print();});
   $("receiptModal").addEventListener("click",e=>{if(e.target===$("receiptModal"))closeReceipt();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape")closeReceipt();});
   $("customerFieldWrap").classList.add("hidden");
@@ -1142,14 +1143,27 @@
     if(window.XLSX){const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[{wch:28},{wch:18},{wch:18},{wch:18},{wch:22},{wch:22},{wch:12},{wch:18},{wch:18},{wch:26},{wch:34},{wch:42},{wch:24}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Inventory");XLSX.writeFile(wb,`ElectroStock-inventory-${fileDate}.xlsx`);toast("Excel inventory file downloaded.");return;}
     const headers=Object.keys(rows[0]||{"Product name":""});const csv="\uFEFF"+[headers,...rows.map(r=>headers.map(h=>r[h]))].map(row=>row.map(csvCell).join(",")).join("\r\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`ElectroStock-inventory-${fileDate}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Inventory exported as a CSV file for Excel.");
   }
-  function showReceipt(sale){
+  let activeSalesDocument="receipt", activeSalesDocumentData=null;
+  function showReceipt(sale,documentType="receipt"){
+    activeSalesDocumentData=sale;activeSalesDocument=documentType;
     const now=new Date(sale.created_at||new Date());
     const items=Array.isArray(sale.items)&&sale.items.length?sale.items:[sale];
     applyCompanyBranding();
-    $("receiptNumber").textContent=sale.receipt_number||items[0]?.receipt_number||"—";
+    const receiptRef=sale.receipt_number||items[0]?.receipt_number||"—";
+    const isInvoice=documentType==="invoice";
+    $("receiptDocumentType").textContent=isInvoice?"SALES INVOICE":"SALES RECEIPT";
+    $("receiptSubtitle").textContent=isInvoice?"Invoice for goods sold":"Thank you for your purchase";
+    $("receiptNumberLabel").textContent=isInvoice?"Invoice no.":"Receipt no.";
+    $("receiptNumber").textContent=isInvoice?(receiptRef==="—"?"—":"INV-"+receiptRef):receiptRef;
+    $("receiptTotalLabel").textContent=isInvoice?"INVOICE TOTAL":"TOTAL PAID";
+    $("printInvoiceBtn").classList.toggle("secondary",!isInvoice);
+    $("printInvoiceBtn").classList.toggle("primary",isInvoice);
+    $("printReceiptBtn").classList.toggle("secondary",isInvoice);
+    $("printReceiptBtn").classList.toggle("primary",!isInvoice);
     $("receiptDate").textContent=now.toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"});
     $("receiptCustomer").textContent=sale.customer_name||items[0]?.customer_name||"Walk-in customer";
-    $("receiptPaymentMethod").textContent=String(sale.payment_method||items[0]?.payment_method||"cash").replace(/^./,c=>c.toUpperCase());
+    const payment=String(sale.payment_method||items[0]?.payment_method||"cash").replace(/^./,c=>c.toUpperCase());
+    $("receiptPaymentMethod").textContent=isInvoice?"Paid · "+payment:payment;
     $("receiptItems").innerHTML=items.map(item=>'<div class="receipt-item"><div><strong>'+esc(item.product_name||"Product")+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_selling_price)+'</small></div><strong>'+money(item.total_amount)+'</strong></div>').join("");
     const total=Number(sale.total_amount??items.reduce((sum,item)=>sum+Number(item.total_amount||0),0));
     $("receiptTotal").textContent=money(total);
