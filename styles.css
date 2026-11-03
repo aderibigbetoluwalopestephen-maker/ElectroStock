@@ -552,3 +552,6 @@
 .admin-overview-message strong{font-size:14px}
 .admin-overview-message p,.admin-note{font-size:12px;color:var(--muted);line-height:1.6;margin:6px 0 0}
 @media(max-width:760px){.admin-quick-stats{grid-template-columns:1fr}.admin-quick-stats .panel{padding:13px}.admin-table{min-width:680px}.admin-tabs{margin-right:-4px}.admin-ticket-head{flex-direction:column}.admin-workspace{padding:14px}}
+
+/* ElectroStock Pro feature indicator */
+.nav-item.pro-locked::after{content:"PRO";margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.06em;padding:3px 6px;border-radius:5px;background:rgba(45,155,112,.14);color:var(--green,#2d9b70)}
