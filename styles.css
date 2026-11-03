@@ -526,7 +526,7 @@
 .admin-quick-stats span{font-size:12px;color:var(--muted)}
 .admin-quick-stats strong{font-size:22px;font-weight:800}
 .admin-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;margin-bottom:4px}
-.admin-tab{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:10px;padding:10px 14px;font:600 12px inherit;cursor:pointer;display:flex;align-items:center;gap:8px}
+.admin-tab{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:10px;padding:10px 14px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px}
 .admin-tab.active{background:var(--green,#218a61);border-color:var(--green,#218a61);color:#fff}
 .admin-workspace{min-height:230px}
 .admin-workspace .panel-heading{margin-bottom:16px}
