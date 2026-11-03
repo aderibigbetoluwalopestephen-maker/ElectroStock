@@ -57,8 +57,7 @@ create policy "Owners read their Pro subscription" on public.pro_subscriptions
 insert into public.pro_subscriptions(owner_id,status,expires_at,updated_at)
 select owner_id,'active',expires_at,now() from public.logo_subscriptions
 where status='active' and expires_at>now()
-on conflict(owner_id) do update set status='active',
- expires_at=greatest(public.pro_subscriptions.expires_at,excluded.expires_at),updated_at=now();
+on conflict(owner_id) do nothing;
 
 create or replace function public.platform_admin_data(p_section text default 'overview')
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
