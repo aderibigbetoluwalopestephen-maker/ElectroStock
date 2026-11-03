@@ -38,6 +38,7 @@
       <button class="nav-item" data-view="products"><span><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span> Products <span class="nav-count" id="productNavCount">0</span></button>
       <button class="nav-item" data-view="pos"><span><i class="fa-solid fa-cash-register" aria-hidden="true"></i></span> Point of Sale</button>
       <button class="nav-item" data-view="sales"><span><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span> Sales history <span class="nav-count" id="salesNavCount">0</span></button>
+      <button class="nav-item" data-view="reports"><span><i class="fa-solid fa-chart-pie" aria-hidden="true"></i></span> Business reports</button>
       <button class="nav-item" data-view="stock"><span><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i></span> Stock movement</button><button class="nav-item" data-view="attendance"><span><i class="fa-regular fa-clock" aria-hidden="true"></i></span> Attendance</button><button class="nav-item" data-view="team"><span><i class="fa-solid fa-users" aria-hidden="true"></i></span> Staff & Team</button>
       <button class="nav-item" data-view="support"><span><i class="fa-solid fa-life-ring" aria-hidden="true"></i></span> Support centre</button>
       <button class="nav-item" data-view="settings"><span><i class="fa-solid fa-gear" aria-hidden="true"></i></span> Company settings</button>
@@ -111,6 +112,23 @@
         <section class="panel glass"><div class="panel-heading"><div><h3>Sales history</h3><p class="muted">Reprint receipts and review recorded sales.</p></div><div class="period-filters"><label class="period-label">Reporting month<input id="salesMonthFilter" type="month" aria-label="Sales reporting month"></label><input id="salesSearch" class="sales-search" type="search" placeholder="Search receipt, customer or product" aria-label="Search sales"></div></div>
           <div class="table-wrap"><table><thead><tr><th>DATE</th><th>RECEIPT</th><th>PRODUCT</th><th>CUSTOMER</th><th>QTY</th><th>UNIT PRICE</th><th>TOTAL</th><th>GROSS PROFIT</th><th></th></tr></thead><tbody id="salesTable"></tbody></table><div id="emptySales" class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt" aria-hidden="true"></i></div><h3>No sales recorded yet</h3><p>Record a sale to see revenue and receipts here.</p><button class="btn primary" id="emptyRecordSaleBtn">＋ Record a sale</button></div></div>
         </section>
+      </section>
+
+      <section id="reportsView" class="view hidden">
+        <div class="section-intro"><div><h1>Business reports</h1><p class="muted">Understand your sales, revenue and gross profit performance.</p></div><button class="btn primary" id="exportReportsBtn" type="button"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export report</button></div>
+        <section class="panel glass report-filter-panel"><div class="panel-heading"><div><h3>Reporting period</h3><p class="muted">Choose a month to review recorded sales.</p></div><label class="period-label">Month<input id="businessReportMonth" type="month" aria-label="Business report month"></label></div><p class="tiny muted" id="reportDataNote">Figures are calculated from recorded sales available in ElectroStock.</p></section>
+        <div class="stats-grid report-stats">
+          <article class="stat-card glass"><div class="stat-top"><span>Total revenue</span><span class="stat-icon green"><i class="fa-solid fa-coins"></i></span></div><h2 id="reportRevenue">₦0</h2><p class="stat-foot">Recorded sales value</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Gross profit</span><span class="stat-icon orange"><i class="fa-solid fa-arrow-trend-up"></i></span></div><h2 id="reportProfit">₦0</h2><p class="stat-foot">Revenue less recorded product cost</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Transactions</span><span class="stat-icon violet"><i class="fa-solid fa-receipt"></i></span></div><h2 id="reportTransactions">0</h2><p class="stat-foot">Completed sales</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Units sold</span><span class="stat-icon blue"><i class="fa-solid fa-boxes-stacked"></i></span></div><h2 id="reportUnits">0</h2><p class="stat-foot">Total quantity sold</p></article>
+        </div>
+        <div class="report-grid">
+          <section class="panel glass"><div class="panel-heading"><div><h3>Daily revenue</h3><p class="muted">Revenue recorded each day in the selected month.</p></div></div><div id="reportDailyChart" class="report-daily-chart"></div></section>
+          <section class="panel glass"><div class="panel-heading"><div><h3>Payment methods</h3><p class="muted">Breakdown by recorded payment method.</p></div></div><div id="reportPayments" class="report-breakdown"></div></section>
+        </div>
+        <section class="panel glass"><div class="panel-heading"><div><h3>Best-selling products</h3><p class="muted">Products ranked by units sold in this period.</p></div></div><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>UNITS SOLD</th><th>REVENUE</th><th>GROSS PROFIT</th></tr></thead><tbody id="reportTopProducts"></tbody></table><div id="reportEmpty" class="empty-state hidden"><h3>No sales for this period</h3><p>Recorded sales will appear here when transactions are completed.</p></div></div></section>
+        <p class="tiny muted report-disclaimer">Gross profit is an estimate based on the purchase prices saved with recorded sales. Operating expenses, taxes and net profit are not included because they are not currently recorded in this report.</p>
       </section>
 
       <section id="stockView" class="view hidden">
