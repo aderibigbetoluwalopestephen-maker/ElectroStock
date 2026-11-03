@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z5";
+
 async function hmac(secret:string,body:string){
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-512"},false,["sign"]);
   const sig=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(body));
@@ -19,7 +21,7 @@ Deno.serve(async(req)=>{
   const tx=event.data||{},meta=tx.metadata||{},ownerId=String(meta.owner_id||""),reference=String(tx.reference||"");
   const plan=tx.plan_object?.plan_code||tx.plan;
   if(meta.feature!=="electrostock_pro"||!ownerId||!reference||tx.status!=="success"||
-     Number(tx.amount)!==500000||tx.currency!=="NGN"||plan!==Deno.env.get("PAYSTACK_PRO_PLAN_CODE")) {
+     Number(tx.amount)!==500000||tx.currency!=="NGN"||plan!==PRO_PLAN_CODE) {
     return new Response("Ignored non-Pro or invalid charge",{status:200});
   }
   const admin=createClient(url,service);
