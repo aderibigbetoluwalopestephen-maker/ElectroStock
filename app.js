@@ -492,6 +492,29 @@
     renderAll();toast("Product deleted.");
   }
   // Render the sales history safely during sign-in, refresh, and after inventory updates.
+  let activeSalesDocumentData=null;
+  function closeReceipt(){
+    const modal=$("receiptModal");
+    if(modal)modal.classList.add("hidden");
+    document.body.style.overflow="";
+  }
+  function showReceipt(sale,type="receipt"){
+    if(!sale)return;
+    activeSalesDocumentData=sale;
+    const invoice=type==="invoice";
+    $("receiptDocumentType").textContent=invoice?"SALES INVOICE":"SALES RECEIPT";
+    $("receiptNumberLabel").textContent=invoice?"Invoice no.":"Receipt no.";
+    $("receiptNumber").textContent=sale.receipt_number||sale.id||"—";
+    $("receiptDate").textContent=fmtDate(sale.created_at||new Date());
+    $("receiptCustomer").textContent=sale.customer_name||"Walk-in customer";
+    $("receiptPaymentMethod").textContent=sale.payment_method||"Not recorded";
+    $("receiptItems").innerHTML=`<div class="receipt-item"><span>${esc(sale.product_name||"Product")} × ${Number(sale.quantity)||0}</span><strong>${money(sale.total_amount||0)}</strong></div>`;
+    $("receiptTotalLabel").textContent=invoice?"TOTAL DUE":"TOTAL PAID";
+    $("receiptTotal").textContent=money(sale.total_amount||0);
+    $("receiptSubtitle").textContent=invoice?"Thank you for your business":"Thank you for your purchase";
+    $("receiptModal").classList.remove("hidden");
+    document.body.style.overflow="hidden";
+  }
   function renderSales(){
     const table=$("salesTable"),empty=$("emptySales");
     if(!table||!empty)return;
