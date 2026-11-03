@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z5";
+const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z4";
 
 async function hmac(secret:string,body:string){
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-512"},false,["sign"]);
