@@ -368,3 +368,12 @@
 .audio-call-avatar{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:color-mix(in srgb,var(--purple) 22%,#111b2b);border:1px solid color-mix(in srgb,var(--purple) 55%,transparent);color:#fff;font-size:28px}
 .audio-call-placeholder strong{font-size:17px;font-weight:700}
 .audio-call-placeholder span{font-size:12px;color:#b9c6d9}
+
+/* Wider document layout when presenting a sales invoice. */
+.receipt-card.invoice-mode{width:min(100%,760px);padding:38px}
+.receipt-card.invoice-mode .receipt-top{text-align:left}
+.receipt-card.invoice-mode .receipt-logo{margin-left:0}
+.receipt-card.invoice-mode .receipt-meta{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.receipt-card.invoice-mode .receipt-item{padding:13px 4px}
+.receipt-card.invoice-mode .receipt-total{font-size:16px}
+@media(max-width:600px){.receipt-card.invoice-mode{padding:22px}.receipt-card.invoice-mode .receipt-meta{grid-template-columns:1fr}}
