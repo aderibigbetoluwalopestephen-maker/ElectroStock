@@ -211,11 +211,33 @@
     if(error){console.warn("Super Admin access check unavailable:",error.message);return;}
     isPlatformAdmin=data===true;
     $("superAdminNav").classList.toggle("hidden",!isPlatformAdmin);
+    if(isPlatformAdmin){
+      // Platform administrators use a separate workspace, not a store-owner workspace.
+      document.querySelectorAll('.nav-item[data-view]').forEach(button=>{
+        if(button.id!=="superAdminNav")button.classList.add("hidden");
+      });
+      $("superAdminNav").classList.remove("hidden");
+      $("pageTitle").textContent="Super Admin";
+      document.querySelector(".topbar-title .eyebrow").textContent="PLATFORM ADMINISTRATION";
+      document.querySelector(".top-actions").classList.add("hidden");
+    }else{
+      document.querySelectorAll('.nav-item[data-view]').forEach(button=>button.classList.remove("hidden"));
+      $("superAdminNav").classList.add("hidden");
+      document.querySelector(".topbar-title .eyebrow").textContent="YOUR STORE AT A GLANCE";
+      document.querySelector(".top-actions").classList.remove("hidden");
+    }
     if(!isPlatformAdmin&&new URLSearchParams(location.search).get("admin")==="1")toast("This account is not authorised for Super Admin access.");
   }
   async function loadCloud(options={}){
     if(localMode||!session?.user?.id)return;
     await checkPlatformAdmin();
+    if(isPlatformAdmin){
+      closeOnboarding();
+      companySettings={...defaultSettings,company_name:"ElectroStock Platform"};
+      applyCompanyBranding();
+      switchView("superadmin");
+      return;
+    }
     teamOwnerId=session.user.id;currentRole="owner";
     const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
     if(membership.data){teamOwnerId=membership.data.owner_id;currentRole=membership.data.role||"sales_rep";}
