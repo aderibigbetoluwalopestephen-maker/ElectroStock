@@ -193,17 +193,89 @@
   });
   $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();chatSeenInitialized=false;teamDataInitialized=false;updateChatBadge();showAuth();setAuthMode("login");});
 
+  let activeAdminSection="overview";
+  const adminDate=value=>value?new Date(value).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"}):"—";
+  async function loadAdminSection(section=activeAdminSection){
+    activeAdminSection=section;
+    const titles={overview:["Platform overview","Live platform-wide totals and activity."],accounts:["Account management","Review registered users and manage application access."],subscriptions:["Subscription management","Manage existing logo-subscription records and expiry dates."],support:["Customer support inbox","Review customer requests, reply and update ticket status."],audit:["Security and audit log","A traceable history of privileged platform actions."]};
+    $("adminSectionTitle").textContent=titles[section]?.[0]||"Platform overview";
+    $("adminSectionDescription").textContent=titles[section]?.[1]||"";
+    document.querySelectorAll("[data-admin-section]").forEach(b=>b.classList.toggle("active",b.dataset.adminSection===section));
+    const host=$("adminSectionContent");host.innerHTML='<p class="muted">Loading '+esc(section)+'…</p>';
+    const {data,error}=await supabase.rpc("platform_admin_data",{p_section:section});
+    if(error){host.innerHTML='<p class="form-message">Could not load this section: '+esc(error.message)+'</p>';return;}
+    if(section==="overview"){
+      host.innerHTML='<div class="admin-overview-message"><i class="fa-solid fa-shield-halved"></i><div><strong>Platform administration is active</strong><p>Use the tabs above to manage accounts, subscriptions, customer support and review administrator activity. Privileged actions are recorded in the audit log.</p></div></div>';
+    }else if(section==="accounts"){
+      const rows=data.accounts||[];
+      host.innerHTML=rows.length?'<div class="table-wrap"><table class="admin-table"><thead><tr><th>Business / account</th><th>Email</th><th>Joined</th><th>Sales</th><th>Status</th><th>Action</th></tr></thead><tbody>'+rows.map(a=>'<tr><td><strong>'+esc(a.business_name)+'</strong><small>'+esc(a.user_id)+'</small></td><td>'+esc(a.email||"—")+'</td><td>'+esc(adminDate(a.created_at))+'</td><td>'+Number(a.sales_count||0).toLocaleString("en-NG")+'</td><td><span class="admin-status '+(a.status==="suspended"?"danger":"good")+'">'+esc(a.status||"active")+'</span>'+(a.suspension_reason?'<small>'+esc(a.suspension_reason)+'</small>':'')+'</td><td>'+(a.user_id===session?.user?.id?'<span class="muted">Your admin account</span>':a.status==="suspended"?'<button class="btn secondary small" data-admin-action="reactivate" data-user-id="'+esc(a.user_id)+'">Reactivate</button>':'<button class="btn danger small" data-admin-action="suspend" data-user-id="'+esc(a.user_id)+'">Suspend</button>')+'</td></tr>').join("")+'</tbody></table></div>':'<p class="muted">No registered accounts found.</p>';
+    }else if(section==="subscriptions"){
+      const rows=data.subscriptions||[];
+      host.innerHTML=rows.length?'<div class="table-wrap"><table class="admin-table"><thead><tr><th>Business / account</th><th>Reference</th><th>Status</th><th>Expiry date</th><th>Save</th></tr></thead><tbody>'+rows.map(s=>'<tr data-sub-row="'+esc(s.user_id)+'"><td><strong>'+esc(s.business_name)+'</strong><small>'+esc(s.email||"")+'</small></td><td>'+esc(s.reference||"—")+'</td><td><select class="admin-select" data-sub-status><option value="active" '+(s.status==="active"?"selected":"")+'>Active</option><option value="inactive" '+(s.status==="inactive"?"selected":"")+'>Inactive</option><option value="cancelled" '+(s.status==="cancelled"?"selected":"")+'>Cancelled</option><option value="expired" '+(s.status==="expired"?"selected":"")+'>Expired</option></select></td><td><input type="date" class="admin-date" data-sub-expiry value="'+(s.expires_at?new Date(s.expires_at).toISOString().slice(0,10):"")+'"></td><td><button class="btn secondary small" data-admin-action="save-subscription" data-user-id="'+esc(s.user_id)+'">Save</button></td></tr>').join("")+'</tbody></table></div>':'<p class="muted">No logo-subscription records yet. A record appears when a subscription is created for a business.</p>';
+    }else if(section==="support"){
+      const rows=data.tickets||[];
+      host.innerHTML=rows.length?'<div class="admin-ticket-list">'+rows.map(t=>'<article class="admin-ticket"><div class="admin-ticket-head"><div><strong>'+esc(t.subject)+'</strong><p>'+esc(t.business_name)+' · '+esc(t.email||"")+'</p></div><span class="admin-status '+(t.status==="resolved"?"good":"pending")+'">'+esc(t.status)+'</span></div><div class="admin-ticket-meta">'+esc(t.category)+' · '+esc(t.priority)+' priority · Updated '+esc(adminDate(t.updated_at))+'</div><div class="admin-ticket-controls"><select class="admin-select" data-ticket-status="'+esc(t.id)+'"><option value="open" '+(t.status==="open"?"selected":"")+'>Open</option><option value="in_progress" '+(t.status==="in_progress"?"selected":"")+'>In progress</option><option value="resolved" '+(t.status==="resolved"?"selected":"")+'>Resolved</option></select><button class="btn primary small" data-admin-action="reply-ticket" data-ticket-id="'+esc(t.id)+'">View conversation / Reply</button></div></article>').join("")+'</div>':'<p class="muted">No support tickets found. If Support Centre has not been enabled in Supabase, apply its support migration first.</p>';
+    }else if(section==="audit"){
+      const rows=data.logs||[];
+      host.innerHTML=rows.length?'<div class="table-wrap"><table class="admin-table"><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>'+rows.map(l=>'<tr><td>'+esc(adminDate(l.created_at))+'</td><td>'+esc(l.admin_email||"—")+'</td><td><strong>'+esc(l.action)+'</strong></td><td>'+esc(l.target_user_id||l.target_record_id||"—")+'</td><td>'+esc(JSON.stringify(l.details||{}))+'</td></tr>').join("")+'</tbody></table></div>':'<p class="muted">No administrator actions have been recorded yet.</p>';
+    }
+    $("adminDashboardMessage").textContent="";
+  }
   async function loadSuperAdminDashboard(){
     if(!isPlatformAdmin||!supabase||localMode)return;
     const message=$("adminDashboardMessage");message.textContent="Loading secure platform metrics…";
-    const {data,error}=await supabase.rpc("get_platform_admin_overview");
-    if(error){message.textContent="Platform metrics are not available yet. Confirm the Super Admin SQL migration has been run in Supabase.";console.error("Super Admin overview failed:",error);return;}
+    const {data,error}=await supabase.rpc("platform_admin_data",{p_section:"overview"});
+    if(error){message.textContent="Platform administration migration is not applied yet: "+error.message;console.error("Super Admin overview failed:",error);return;}
     $("adminUserCount").textContent=Number(data?.registered_accounts||0).toLocaleString("en-NG");
     $("adminBusinessCount").textContent=Number(data?.businesses||0).toLocaleString("en-NG");
     $("adminSalesCount").textContent=Number(data?.sales_transactions||0).toLocaleString("en-NG");
-    $("adminSupportCount").textContent=data?.support_tickets==null?"—":Number(data.support_tickets).toLocaleString("en-NG");
+    $("adminSupportCount").textContent=Number(data?.support_tickets||0).toLocaleString("en-NG");
+    $("adminSalesVolume").textContent="Recorded volume: "+new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:0}).format(Number(data?.sales_volume||0));
+    $("adminNewAccounts").textContent=Number(data?.new_accounts_30d||0).toLocaleString("en-NG");
+    $("adminActiveSubs").textContent=Number(data?.active_subscriptions||0).toLocaleString("en-NG");
+    $("adminSuspended").textContent=Number(data?.suspended_accounts||0).toLocaleString("en-NG");
     message.textContent="Metrics refreshed: "+new Date().toLocaleString("en-NG");
+    await loadAdminSection(activeAdminSection);
   }
+  document.querySelectorAll("[data-admin-section]").forEach(button=>button.addEventListener("click",()=>loadAdminSection(button.dataset.adminSection)));
+  $("adminRefreshBtn").addEventListener("click",()=>loadSuperAdminDashboard());
+  $("adminSectionContent").addEventListener("click",async event=>{
+    const button=event.target.closest("[data-admin-action]");if(!button||!isPlatformAdmin)return;
+    const action=button.dataset.adminAction;let payload={};
+    if(action==="suspend"){
+      if(!confirm("Suspend this account's access to ElectroStock?"))return;
+      payload={user_id:button.dataset.userId,reason:prompt("Reason for suspension (optional):","")||""};
+      button.disabled=true;
+      const {error}=await supabase.rpc("platform_admin_action",{p_action:"suspend_account",p_payload:payload});
+      if(error){toast("Could not suspend account: "+error.message);button.disabled=false;return;}
+      toast("Account marked as suspended.");await loadAdminSection("accounts");await loadSuperAdminDashboard();
+    }else if(action==="reactivate"){
+      if(!confirm("Reactivate this account?"))return;
+      button.disabled=true;
+      const {error}=await supabase.rpc("platform_admin_action",{p_action:"reactivate_account",p_payload:{user_id:button.dataset.userId}});
+      if(error){toast("Could not reactivate account: "+error.message);button.disabled=false;return;}
+      toast("Account reactivated.");await loadAdminSection("accounts");await loadSuperAdminDashboard();
+    }else if(action==="save-subscription"){
+      const row=button.closest("[data-sub-row]");const status=row.querySelector("[data-sub-status]").value;const expiry=row.querySelector("[data-sub-expiry]").value;
+      if(!confirm("Save this subscription status and expiry date?"))return;
+      button.disabled=true;
+      const {error}=await supabase.rpc("platform_admin_action",{p_action:"update_subscription",p_payload:{user_id:button.dataset.userId,status,expires_at:expiry?expiry+"T23:59:59.999Z":null}});
+      if(error){toast("Subscription update failed: "+error.message);button.disabled=false;return;}
+      toast("Subscription record updated.");await loadAdminSection("subscriptions");await loadSuperAdminDashboard();
+    }else if(action==="reply-ticket"){
+      const ticketId=button.dataset.ticketId;
+      const {data:messages,error:readError}=await supabase.from("support_ticket_messages").select("message,sender_id,created_at").eq("ticket_id",ticketId).order("created_at",{ascending:true}).limit(50);
+      if(readError){toast("Could not load conversation: "+readError.message);return;}
+      const history=(messages||[]).map(m=>adminDate(m.created_at)+" · "+(m.sender_id===session?.user?.id?"You":"Customer/staff")+": "+m.message).join("\n\n");
+      const reply=prompt("Ticket conversation:\n\n"+(history||"No messages yet.")+"\n\nWrite your reply:");
+      if(!reply?.trim())return;
+      const status=document.querySelector('[data-ticket-status="'+ticketId+'"]')?.value||"in_progress";
+      button.disabled=true;
+      const {error}=await supabase.rpc("platform_admin_action",{p_action:"support_reply",p_payload:{ticket_id:ticketId,message:reply.trim(),status}});
+      if(error){toast("Could not send reply: "+error.message);button.disabled=false;return;}
+      toast("Support reply sent.");await loadAdminSection("support");await loadSuperAdminDashboard();
+    }
+  });
   async function checkPlatformAdmin(){
     isPlatformAdmin=false;$("superAdminNav").classList.add("hidden");
     if(localMode||!session?.user?.id)return;
