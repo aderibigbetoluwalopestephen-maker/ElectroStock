@@ -235,7 +235,7 @@
     else {const {error}=await supabase.from("products").delete().eq("id",id);if(error){toast(error.message);return;}await loadCloud();}
     renderAll();toast("Product deleted.");
   }
-  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderPos();applyCompanyBranding();}
+  function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
     const low=products.filter(p=>statusOf(p)==="low").length,out=products.filter(p=>statusOf(p)==="out").length;
@@ -262,7 +262,7 @@
   function renderProductOptions(){const current=$("stockProduct").value;$("stockProduct").innerHTML='<option value="">Select a product</option>'+products.map(p=>`<option value="${p.id}" ${p.id===current?"selected":""}>${esc(p.name)} (${p.quantity} available)</option>`).join("");}
   function currentMonthKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
   function monthMatches(value,month){if(!month)return true;const d=new Date(value||0);return !Number.isNaN(d.getTime())&&d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")===month;}
-  function initializeMonthFilters(){const month=currentMonthKey();["salesMonthFilter","movementMonthFilter","attendanceMonthFilter"].forEach(id=>{const el=$(id);if(el&&!el.value)el.value=month;});}
+  function initializeMonthFilters(){const month=currentMonthKey();["salesMonthFilter","movementMonthFilter","attendanceMonthFilter","businessReportMonth"].forEach(id=>{const el=$(id);if(el&&!el.value)el.value=month;});}
   function renderMovements(){const month=$("movementMonthFilter")?.value||currentMonthKey();const monthly=movements.filter(m=>monthMatches(m.created_at,month));const added=monthly.filter(m=>Number(m.quantity_change)>0).reduce((sum,m)=>sum+Number(m.quantity_change),0);const sold=monthly.filter(m=>m.movement_type==="sale").reduce((sum,m)=>sum+Math.abs(Number(m.quantity_change)),0);const net=monthly.reduce((sum,m)=>sum+Number(m.quantity_change||0),0);$("monthlyStockAdded").textContent=added.toLocaleString("en-NG");$("monthlyStockSold").textContent=sold.toLocaleString("en-NG");$("monthlyStockNet").textContent=(net>0?"+":"")+net.toLocaleString("en-NG");const rows=monthly.slice(0,300);$("movementTable").innerHTML=rows.map(m=>`<tr><td>${fmtDate(m.created_at||new Date())}</td><td>${esc(m.product_name||products.find(p=>p.id===m.product_id)?.name||"Product")}</td><td>${esc(({purchase:"Purchase",adjustment:"Adjustment",sale:"Sale"}[m.movement_type]||m.movement_type||"Movement"))}</td><td style="color:${Number(m.quantity_change)>=0?"#78dfb4":"#ff9ba7"}">${Number(m.quantity_change)>0?"+":""}${Number(m.quantity_change)}</td><td>${esc(m.note||"—")}</td></tr>`).join("");$("emptyMovements").classList.toggle("hidden",rows.length>0);}
 
   let teamMembers=[],teamMessages=[],teamAnnouncements=[],attendanceRows=[],teamOwnerId=null,currentRole="owner";
@@ -933,7 +933,7 @@
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
   // Support Centre ticket handlers are disabled while the page displays Coming Soon.
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
@@ -943,6 +943,8 @@
   $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Excel';e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
   $("salesMonthFilter").addEventListener("change",renderSales);
+  $("businessReportMonth").addEventListener("change",renderReports);
+  $("exportReportsBtn").addEventListener("click",exportBusinessReport);
   $("movementMonthFilter").addEventListener("change",renderMovements);
   $("attendanceMonthFilter").addEventListener("change",renderTeam);
   function openSaleForm(){switchView("pos");$("posSearch").focus();$("posMessage").textContent="Add products to the cart to start a sale.";}
@@ -1169,6 +1171,44 @@
     const total=Number(sale.total_amount??items.reduce((sum,item)=>sum+Number(item.total_amount||0),0));
     $("receiptTotal").textContent=money(total);
     $("receiptModal").classList.remove("hidden");document.body.style.overflow="hidden";
+  }
+  function reportSalesForMonth(){
+    const month=$("businessReportMonth")?.value||currentMonthKey();
+    return sales.filter(s=>monthMatches(s.created_at,month));
+  }
+  function renderReports(){
+    const rows=reportSalesForMonth();
+    const revenue=rows.reduce((sum,s)=>sum+Number(s.total_amount||0),0);
+    const profit=rows.reduce((sum,s)=>sum+Number(s.gross_profit||0),0);
+    const units=rows.reduce((sum,s)=>sum+Number(s.quantity||0),0);
+    const transactions=new Set(rows.map(s=>s.transaction_ref||s.receipt_number||s.id)).size;
+    $("reportRevenue").textContent=money(revenue);
+    $("reportProfit").textContent=money(profit);
+    $("reportTransactions").textContent=transactions.toLocaleString("en-NG");
+    $("reportUnits").textContent=units.toLocaleString("en-NG");
+    const days={};
+    rows.forEach(s=>{const d=new Date(s.created_at);if(Number.isNaN(d.getTime()))return;const key=d.getDate();days[key]=(days[key]||0)+Number(s.total_amount||0);});
+    const max=Math.max(1,...Object.values(days));
+    const dayCount=(()=>{const [y,m]=($("businessReportMonth").value||currentMonthKey()).split("-").map(Number);return new Date(y,m,0).getDate();})();
+    $("reportDailyChart").innerHTML=Array.from({length:dayCount},(_,i)=>{const day=i+1,value=days[day]||0;return '<div class="report-day-row"><span>'+day+'</span><div class="report-bar-track"><i style="width:'+Math.max(0,(value/max)*100)+'%"></i></div><strong>'+money(value)+'</strong></div>';}).join("");
+    const payments={};
+    rows.forEach(s=>{const method=String(s.payment_method||"Other").replace(/^./,c=>c.toUpperCase());payments[method]=(payments[method]||0)+Number(s.total_amount||0);});
+    const paymentEntries=Object.entries(payments).sort((a,b)=>b[1]-a[1]);
+    $("reportPayments").innerHTML=paymentEntries.length?paymentEntries.map(([name,value])=>'<div class="report-payment-row"><span>'+esc(name)+'</span><strong>'+money(value)+'</strong></div>').join(""):'<p class="muted">No payment data for this period.</p>';
+    const productsByName={};
+    rows.forEach(s=>{const name=s.product_name||"Unnamed product";if(!productsByName[name])productsByName[name]={quantity:0,revenue:0,profit:0};productsByName[name].quantity+=Number(s.quantity||0);productsByName[name].revenue+=Number(s.total_amount||0);productsByName[name].profit+=Number(s.gross_profit||0);});
+    const top=Object.entries(productsByName).sort((a,b)=>b[1].quantity-a[1].quantity).slice(0,10);
+    $("reportTopProducts").innerHTML=top.map(([name,v])=>'<tr><td><strong>'+esc(name)+'</strong></td><td>'+v.quantity.toLocaleString("en-NG")+'</td><td>'+money(v.revenue)+'</td><td>'+money(v.profit)+'</td></tr>').join("");
+    $("reportEmpty").classList.toggle("hidden",rows.length>0);
+  }
+  function exportBusinessReport(){
+    const rows=reportSalesForMonth(),month=$("businessReportMonth").value||currentMonthKey();
+    const totals={Revenue:rows.reduce((s,x)=>s+Number(x.total_amount||0),0),"Gross profit":rows.reduce((s,x)=>s+Number(x.gross_profit||0),0),"Units sold":rows.reduce((s,x)=>s+Number(x.quantity||0),0),Transactions:new Set(rows.map(x=>x.transaction_ref||x.receipt_number||x.id)).size};
+    const productMap={};rows.forEach(s=>{const n=s.product_name||"Unnamed product";if(!productMap[n])productMap[n]={units:0,revenue:0,profit:0};productMap[n].units+=Number(s.quantity||0);productMap[n].revenue+=Number(s.total_amount||0);productMap[n].profit+=Number(s.gross_profit||0);});
+    const data=[["ElectroStock Business Report",month],[],["SUMMARY","VALUE"],...Object.entries(totals),[],["PRODUCT","UNITS SOLD","REVENUE","GROSS PROFIT"],...Object.entries(productMap).map(([n,v])=>[n,v.units,v.revenue,v.profit])];
+    const csv="\\uFEFF"+data.map(row=>row.map(csvCell).join(",")).join("\\r\\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download="ElectroStock-business-report-"+month+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Business report exported for Excel.");
   }
   function renderSales(){
     const today=new Date();const isToday=s=>{const d=new Date(s.created_at);return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();};
