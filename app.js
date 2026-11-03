@@ -706,7 +706,7 @@
     const today=new Date().toLocaleDateString("en-CA");
     const key="electrostock_subscription_reminder_"+session.user.id;
     try{if(localStorage.getItem(key)===today)return;}catch{}
-    addNotification("Subscription reminder","Your logo customization subscription is not active. Subscribe for ₦1,500/month to use your own business logo on ElectroStock and receipts.","subscription");
+    addNotification("Subscription reminder","Your ElectroStock Pro subscription is not active. Upgrade for advanced reports, unlimited products and staff, and custom business branding.","subscription");
     try{localStorage.setItem(key,today);}catch{}
   }
   function ensureWeeklyAndMonthlyMessages(){
