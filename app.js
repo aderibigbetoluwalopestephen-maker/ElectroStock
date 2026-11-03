@@ -210,7 +210,8 @@
     companySettings={...defaultSettings,...(cs?.data||{})};
     logoSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Logo subscription status could not be loaded:",sub.error.message);
-    ensureDailySubscriptionReminder();\n    ensureWeeklyAndMonthlyMessages();
+    ensureDailySubscriptionReminder();
+    ensureWeeklyAndMonthlyMessages();
     renderAll();applyCompanyBranding();populateSettingsForm();
     await loadTeamData();
     await handleAttendanceLink();
