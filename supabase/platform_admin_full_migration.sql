@@ -33,7 +33,7 @@ select user_id from public.platform_admins on conflict (user_id) do nothing;
 
 create or replace function public.platform_admin_data(p_section text default 'overview')
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare v jsonb;
+declare v jsonb; v_support_count bigint := 0;
 begin
  if not exists(select 1 from public.platform_admins where user_id=(select auth.uid())) then
    raise exception 'Not authorised' using errcode='42501';
@@ -64,6 +64,7 @@ begin
    from public.platform_audit_logs l left join auth.users u on u.id=l.admin_user_id;
    return jsonb_build_object('logs',v);
  else
+   if to_regclass('public.support_tickets') is not null then execute 'select count(*) from public.support_tickets' into v_support_count; end if;
    select jsonb_build_object(
      'registered_accounts',(select count(*) from auth.users),
      'businesses',(select count(*) from public.company_settings),
@@ -72,7 +73,7 @@ begin
      'new_accounts_30d',(select count(*) from auth.users where created_at>=now()-interval '30 days'),
      'active_subscriptions',(select count(*) from public.logo_subscriptions where status='active' and (expires_at is null or expires_at>now())),
      'suspended_accounts',(select count(*) from public.platform_account_controls where status='suspended'),
-     'support_tickets',(case when to_regclass('public.support_tickets') is null then 0 else (select count(*) from public.support_tickets) end)
+     'support_tickets',v_support_count
    ) into v;
    return v;
  end if;
