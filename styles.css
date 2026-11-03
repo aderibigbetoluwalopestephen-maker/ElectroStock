@@ -377,3 +377,136 @@
 .receipt-card.invoice-mode .receipt-item{padding:13px 4px}
 .receipt-card.invoice-mode .receipt-total{font-size:16px}
 @media(max-width:600px){.receipt-card.invoice-mode{padding:22px}.receipt-card.invoice-mode .receipt-meta{grid-template-columns:1fr}}
+
+
+/* Thermal printer output: compact 80mm receipt roll for receipts and invoices. */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+  html, body {
+    width: 74mm !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #receiptModal, #receiptModal * {
+    visibility: visible !important;
+  }
+  #receiptModal {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    display: block !important;
+    width: 74mm !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+  }
+  #receiptModal.hidden {
+    display: block !important;
+  }
+  #receiptModal .receipt-card,
+  #receiptModal .receipt-card.invoice-mode {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 74mm !important;
+    max-width: 74mm !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 9pt !important;
+    overflow-wrap: anywhere !important;
+  }
+  #receiptModal .receipt-top,
+  #receiptModal .receipt-card.invoice-mode .receipt-top {
+    text-align: center !important;
+    padding-bottom: 3mm !important;
+  }
+  #receiptModal .receipt-logo {
+    width: 9mm !important;
+    height: 9mm !important;
+    margin: 0 auto 2mm !important;
+    font-size: 12pt !important;
+  }
+  #receiptModal .receipt-top .eyebrow {
+    font-size: 7pt !important;
+    letter-spacing: 1px !important;
+  }
+  #receiptModal .receipt-top h2 {
+    font-size: 14pt !important;
+    margin: 1mm 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+  #receiptModal .receipt-business-details,
+  #receiptModal .receipt-subtitle {
+    font-size: 8pt !important;
+    line-height: 1.35 !important;
+  }
+  #receiptModal .receipt-meta,
+  #receiptModal .receipt-card.invoice-mode .receipt-meta {
+    display: block !important;
+    padding: 2mm 0 !important;
+  }
+  #receiptModal .receipt-meta > div {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 2mm !important;
+    margin: 1mm 0 !important;
+  }
+  #receiptModal .receipt-meta span,
+  #receiptModal .receipt-meta strong,
+  #receiptModal .receipt-line span,
+  #receiptModal .receipt-line strong,
+  #receiptModal .receipt-item,
+  #receiptModal .receipt-item small {
+    font-size: 8pt !important;
+  }
+  #receiptModal .receipt-line {
+    padding: 2mm 0 !important;
+    gap: 2mm !important;
+  }
+  #receiptModal .receipt-items {
+    gap: 2mm !important;
+    margin: 2mm 0 !important;
+  }
+  #receiptModal .receipt-item {
+    gap: 2mm !important;
+    padding-bottom: 2mm !important;
+    overflow-wrap: anywhere !important;
+  }
+  #receiptModal .receipt-item > strong {
+    white-space: normal !important;
+    text-align: right !important;
+    font-size: 8pt !important;
+  }
+  #receiptModal .receipt-total {
+    margin-top: 2mm !important;
+    padding: 3mm 0 !important;
+    gap: 2mm !important;
+  }
+  #receiptModal .receipt-total span {
+    font-size: 8pt !important;
+  }
+  #receiptModal .receipt-total strong {
+    font-size: 13pt !important;
+  }
+  #receiptModal .receipt-thanks {
+    font-size: 8pt !important;
+    padding: 2mm 0 0 !important;
+  }
+  #receiptModal .receipt-actions {
+    display: none !important;
+  }
+}
