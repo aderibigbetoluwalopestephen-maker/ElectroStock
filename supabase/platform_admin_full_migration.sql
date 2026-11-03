@@ -141,12 +141,14 @@ grant execute on function public.platform_admin_action(text,jsonb) to authentica
 
 create or replace function public.platform_admin_is_suspended()
 returns boolean language sql stable security definer set search_path = '' as $$
- select exists(
-   select 1 from public.platform_account_controls c
-   where c.user_id=coalesce(
-     (select sm.owner_id from public.store_members sm where sm.user_id=auth.uid() limit 1),
-     auth.uid()
-   ) and c.status='suspended'
+ select (
+   exists(select 1 from public.platform_account_controls own_control
+     where own_control.user_id=auth.uid() and own_control.status='suspended')
+   or exists(select 1 from public.platform_account_controls owner_control
+     where owner_control.user_id=coalesce(
+       (select sm.owner_id from public.store_members sm where sm.user_id=auth.uid() limit 1),
+       auth.uid()
+     ) and owner_control.status='suspended')
  );
 $$;
 revoke all on function public.platform_admin_is_suspended() from public;
