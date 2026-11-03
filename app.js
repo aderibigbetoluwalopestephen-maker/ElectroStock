@@ -952,6 +952,51 @@
     $("notificationPanel")?.classList.add("hidden");
     $("enableNotificationsBtn")?.setAttribute("aria-expanded","false");
   }
+  // Wire the notification controls explicitly; the panel is hidden until the bell is clicked.
+  $("enableNotificationsBtn")?.addEventListener("click",event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    const panel=$("notificationPanel");
+    if(!panel)return;
+    const willOpen=panel.classList.contains("hidden");
+    panel.classList.toggle("hidden",!willOpen);
+    $("enableNotificationsBtn").setAttribute("aria-expanded",String(willOpen));
+    if(willOpen)renderNotifications();
+  });
+  $("clearNotificationsBtn")?.addEventListener("click",event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    notificationItems.length=0;
+    unreadNotificationCount=0;
+    saveNotifications();
+    renderNotifications();
+  });
+  $("allowBrowserNotificationsBtn")?.addEventListener("click",event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    requestBrowserNotifications();
+  });
+  $("notificationList")?.addEventListener("click",event=>{
+    const item=event.target.closest("[data-notification-index]");
+    if(!item)return;
+    event.preventDefault();
+    const index=Number(item.dataset.notificationIndex);
+    const notification=notificationItems[index];
+    if(!notification)return;
+    notification.read=true;
+    saveNotifications();
+    renderNotifications();
+    closeNotificationPanel();
+    if(notification.kind==="chat"){
+      switchView("team");
+      showTeamTab("chat");
+    }else if(notification.kind==="attendance"){
+      switchView("team");
+      showTeamTab("attendance");
+    }else if(notification.kind==="subscription"){
+      switchView("settings");
+    }
+  });
   function sendBrowserNotification(title,body,tag){
     if(!document.hidden||!("Notification" in window)||Notification.permission!=="granted")return;
     try{new Notification("ElectroStock · "+title,{body,tag});}catch{}
