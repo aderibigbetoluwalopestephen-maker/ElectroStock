@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.notify-support-email]
 verify_jwt = true
+
+[functions.verify-pro-subscription]
+verify_jwt = true
+
+[functions.paystack-pro-webhook]
+verify_jwt = false
