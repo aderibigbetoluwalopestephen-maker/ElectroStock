@@ -28,6 +28,14 @@ create policy "Platform admins read audit logs" on public.platform_audit_logs fo
 using (exists(select 1 from public.platform_admins a where a.user_id=auth.uid()));
 
 -- The platform admin is also an authorized support operator.
+create table if not exists public.platform_support_admins (
+ user_id uuid primary key references auth.users(id) on delete cascade,
+ created_at timestamptz not null default now()
+);
+alter table public.platform_support_admins enable row level security;
+grant select on public.platform_support_admins to authenticated;
+drop policy if exists "Platform support admins read own record" on public.platform_support_admins;
+create policy "Platform support admins read own record" on public.platform_support_admins for select to authenticated using (user_id=auth.uid());
 insert into public.platform_support_admins(user_id)
 select user_id from public.platform_admins on conflict (user_id) do nothing;
 
