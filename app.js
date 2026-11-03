@@ -1349,6 +1349,27 @@
   $("receiptModal").addEventListener("click",e=>{if(e.target===$("receiptModal"))closeReceipt();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape")closeReceipt();});
   $("customerFieldWrap").classList.add("hidden");
+  function updateCompanySiteIcon(logoUrl){
+    // The favicon is set per signed-in business, not globally for every account.
+    let iconLink=document.querySelector('link[rel="icon"]');
+    if(!iconLink){
+      iconLink=document.createElement("link");
+      iconLink.rel="icon";
+      document.head.appendChild(iconLink);
+    }
+    const defaultIcon='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#101827"/><text x="32" y="43" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#ffffff">E+</text></svg>');
+    iconLink.removeAttribute("type");
+    iconLink.href=logoUrl||defaultIcon;
+
+    // Also use the business logo when the app is saved to an iPhone/iPad home screen.
+    let touchIcon=document.querySelector('link[rel="apple-touch-icon"]');
+    if(!touchIcon){
+      touchIcon=document.createElement("link");
+      touchIcon.rel="apple-touch-icon";
+      document.head.appendChild(touchIcon);
+    }
+    touchIcon.href=logoUrl||defaultIcon;
+  }
   function applyCompanyBranding(){
     const name=(companySettings.company_name||"ElectroStock").trim()||"ElectroStock";
     $("sidebarCompanyName").innerHTML=`${esc(name)}<small>INVENTORY DESK</small>`;
@@ -1359,6 +1380,7 @@
     const logoMarkup=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';
     $("settingsLogoPreview").innerHTML=logoMarkup;$("receiptLogo").innerHTML=logoMarkup;
     ["authBrandLogo","sidebarBrandLogo","mobileBrandLogo"].forEach(id=>{const el=$(id);if(el)el.innerHTML=activeLogo?`<img src="${esc(activeLogo)}" alt="Company logo">`:'E<span>+</span>';});
+    updateCompanySiteIcon(activeLogo);
     document.title=`${name} — Inventory Management`;updateProSubscriptionUI();
   }
   function populateSettingsForm(){
