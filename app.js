@@ -10,6 +10,100 @@
   let teamDataInitialized=false, notificationRefreshInProgress=false;
   let isPlatformAdmin=false;
   let supportTickets=[], supportMessages=[], activeSupportTicketId=null, isSupportAdmin=false;
+  let paystackLoadPromise=null;
+  // Capture the Pro button click early so unrelated page initialization errors
+  // cannot leave the subscription button without a working handler.
+  document.addEventListener("click",async(event)=>{
+    const button=event.target?.closest?.("#subscribeLogoBtn");
+    if(!button)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if(button.dataset.checkoutBusy==="1")return;
+    const status=$("proSubscriptionStatus");
+    const originalText="Upgrade to Pro · ₦5,000/month";
+    const setStatus=(message)=>{if(status)status.textContent=message;};
+    const setBusy=(busy)=>{
+      button.dataset.checkoutBusy=busy?"1":"0";
+      button.disabled=busy;
+      button.textContent=busy?"Preparing secure checkout…":(hasActiveProSubscription()?"Pro subscription active":originalText);
+    };
+    if(localMode||!session?.user?.id){
+      setStatus("Please sign in with your Store Owner account to subscribe to ElectroStock Pro.");
+      toast("Sign in to subscribe to ElectroStock Pro.");
+      return;
+    }
+    if(currentRole!=="owner"){
+      setStatus("Only the Store Owner can purchase ElectroStock Pro.");
+      toast("Ask the Store Owner to upgrade this store.");
+      return;
+    }
+    if(hasActiveProSubscription()){
+      setStatus("ElectroStock Pro is already active.");
+      toast("ElectroStock Pro is already active.");
+      return;
+    }
+    if(!config.paystackPublicKey||!config.paystackProPlanCode){
+      setStatus("Paystack is not configured. Check the public key and Pro plan code in config.js.");
+      toast("Payment checkout is not configured.");
+      return;
+    }
+    setBusy(true);
+    try{
+      if(!window.PaystackPop?.setup){
+        if(!paystackLoadPromise){
+          paystackLoadPromise=new Promise((resolve,reject)=>{
+            const script=document.createElement("script");
+            script.src="https://js.paystack.co/v1/inline.js";
+            script.async=true;
+            script.onload=()=>window.PaystackPop?.setup?resolve():reject(new Error("Paystack checkout library did not initialize."));
+            script.onerror=()=>reject(new Error("Paystack checkout could not load. Check your internet connection or browser content blocker."));
+            document.head.appendChild(script);
+          }).finally(()=>{paystackLoadPromise=null;});
+        }
+        await paystackLoadPromise;
+      }
+      if(!window.PaystackPop?.setup)throw new Error("Paystack checkout is unavailable in this browser.");
+      const handler=window.PaystackPop.setup({
+        key:config.paystackPublicKey,
+        email:session.user.email,
+        currency:"NGN",
+        plan:config.paystackProPlanCode,
+        ref:"ESP_"+session.user.id.replace(/-/g,"")+"_"+Date.now(),
+        metadata:{feature:"electrostock_pro",owner_id:session.user.id,plan_code:config.paystackProPlanCode},
+        callback:async(response)=>{
+          setStatus("Payment received. Verifying securely…");
+          try{
+            if(!response?.reference)throw new Error("Paystack did not return a payment reference.");
+            const result=await supabase.functions.invoke("verify-pro-subscription",{body:{reference:response.reference}});
+            if(result.error)throw new Error(result.error.message||"Payment verification failed.");
+            if(result.data?.error)throw new Error(result.data.error);
+            if(!result.data?.active||!result.data?.expires_at)throw new Error("The server has not confirmed Pro activation yet.");
+            proSubscription={active:true,expires_at:result.data.expires_at,error:null};
+            await loadCloud({silent:true});
+            setStatus("Payment verified. ElectroStock Pro is active until "+new Date(result.data.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})+".");
+            toast("ElectroStock Pro activated successfully.");
+          }catch(error){
+            console.error("ElectroStock Pro payment verification failed:",error);
+            setStatus("Payment may have succeeded, but verification needs attention. Do not pay again. Contact support with reference: "+(response?.reference||"not provided")+". Details: "+(error?.message||"Unknown error"));
+            toast("Payment verification needs attention. Do not pay again.");
+          }finally{setBusy(false);updateProSubscriptionUI();}
+        },
+        onClose:()=>{
+          setBusy(false);
+          if(!hasActiveProSubscription())setStatus("Checkout closed. No payment was confirmed.");
+          updateProSubscriptionUI();
+        }
+      });
+      if(!handler||typeof handler.openIframe!=="function")throw new Error("Paystack did not create a checkout session.");
+      setStatus("Opening Paystack secure checkout…");
+      handler.openIframe();
+    }catch(error){
+      console.error("ElectroStock Pro checkout could not start:",error);
+      setBusy(false);
+      setStatus(error?.message||"Checkout could not start. Refresh the page and try again.");
+      toast(error?.message||"Payment checkout could not start.");
+    }
+  },true);
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
   const money = n => new Intl.NumberFormat("en",{style:"currency",currency:companySettings.currency||"NGN",maximumFractionDigits:2}).format(Number(n)||0);
@@ -1140,47 +1234,6 @@
       : (localMode?"Pro subscriptions are available to registered accounts only.":proSubscription.error?"Pro subscription status could not be verified. Refresh or contact support.":"Upgrade to ElectroStock Pro for unlimited products and staff, advanced reports, exports and custom business branding.");
     if(help)help.textContent=active?"Pro active. PNG, JPG or WEBP, maximum 2 MB.":"Upgrade to Pro to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
-  $("subscribeLogoBtn").addEventListener("click",()=>{
-    const button=$("subscribeLogoBtn"),status=$("proSubscriptionStatus");
-    if(localMode||!session?.user?.id){toast("Sign in to subscribe to ElectroStock Pro.");return;}
-    if(hasActiveProSubscription()){toast("ElectroStock Pro is already active.");return;}
-    if(!config.paystackPublicKey||!config.paystackProPlanCode||!window.PaystackPop?.setup){
-      if(status)status.textContent="Paystack checkout is not configured. Refresh the page or contact support.";
-      toast("Payment checkout is not available right now.");return;
-    }
-    button.disabled=true;button.textContent="Opening secure checkout…";
-    const handler=window.PaystackPop.setup({
-      key:config.paystackPublicKey,
-      email:session.user.email,
-      amount:500000,
-      currency:"NGN",
-      plan:config.paystackProPlanCode,
-      ref:"ESP_"+session.user.id.replace(/-/g,"")+"_"+Date.now(),
-      metadata:{feature:"electrostock_pro",owner_id:session.user.id,plan_code:config.paystackProPlanCode},
-      callback:async(response)=>{
-        if(status)status.textContent="Payment received. Verifying securely…";
-        try{
-          const result=await supabase.functions.invoke("verify-pro-subscription",{body:{reference:response.reference}});
-          if(result.error)throw new Error(result.error.message||"Payment verification failed.");
-          if(result.data?.error)throw new Error(result.data.error);
-          proSubscription={active:true,expires_at:result.data.expires_at,error:null};
-          renderAll();updateProSubscriptionUI();
-          if(status)status.textContent="Payment verified. ElectroStock Pro is active until "+new Date(result.data.expires_at).toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"})+".";
-          toast("ElectroStock Pro activated successfully.");
-          await loadCloud({silent:true});
-        }catch(error){
-          console.error("ElectroStock Pro payment verification failed:",error);
-          if(status)status.textContent="Payment was received, but automatic verification did not finish. Do not pay again. Contact support with reference: "+response.reference;
-          toast("Payment verification needs attention. Do not pay again.");
-        }finally{button.disabled=false;updateProSubscriptionUI();}
-      },
-      onClose:()=>{
-        button.disabled=false;updateProSubscriptionUI();
-        if(status&&!hasActiveProSubscription())status.textContent="Checkout closed. No payment was confirmed.";
-      }
-    });
-    handler.openIframe();
-  });
   document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
 
   function openModal(id=null){if(!canManageProducts()){toast("Only the owner or a manager can edit products.");return;}
