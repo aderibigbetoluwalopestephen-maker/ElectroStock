@@ -310,6 +310,12 @@
       switchView("superadmin");
       return;
     }
+    const suspensionCheck=await supabase.rpc("platform_admin_is_suspended");
+    if(!suspensionCheck.error&&suspensionCheck.data===true){
+      await supabase.auth.signOut();session=null;showAuth();
+      authMessage("This ElectroStock account has been suspended. Contact support if you believe this is a mistake.");
+      return;
+    }
     teamOwnerId=session.user.id;currentRole="owner";
     const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
     if(membership.data){teamOwnerId=membership.data.owner_id;currentRole=membership.data.role||"sales_rep";}
