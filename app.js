@@ -1160,7 +1160,7 @@
     host.innerHTML=supportMessages.map(m=>'<article class="support-message '+(m.sender_id===session.user.id?'mine':'')+'"><div class="support-message-head"><strong>'+((m.sender_id===session.user.id)?"You":(isSupportAdmin?"Customer / store team":"ElectroStock support"))+'</strong><time>'+new Date(m.created_at).toLocaleString("en-NG",{dateStyle:"medium",timeStyle:"short"})+'</time></div><p>'+esc(m.message).replace(/\n/g,"<br>")+'</p></article>').join("")||'<p class="muted">No replies yet. Send a message below to continue.</p>';
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
-  // Support Centre ticket handlers are disabled while the page displays Coming Soon.
+  // Support Centre workflows are active; the support view and forms are wired below.
 
   // Customer Support Centre: tickets are shared with the platform support team.
   $("supportCreateForm")?.addEventListener("submit",async event=>{
