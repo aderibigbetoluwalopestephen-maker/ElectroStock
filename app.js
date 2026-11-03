@@ -1206,7 +1206,7 @@
     const totals={Revenue:rows.reduce((s,x)=>s+Number(x.total_amount||0),0),"Gross profit":rows.reduce((s,x)=>s+Number(x.gross_profit||0),0),"Units sold":rows.reduce((s,x)=>s+Number(x.quantity||0),0),Transactions:new Set(rows.map(x=>x.transaction_ref||x.receipt_number||x.id)).size};
     const productMap={};rows.forEach(s=>{const n=s.product_name||"Unnamed product";if(!productMap[n])productMap[n]={units:0,revenue:0,profit:0};productMap[n].units+=Number(s.quantity||0);productMap[n].revenue+=Number(s.total_amount||0);productMap[n].profit+=Number(s.gross_profit||0);});
     const data=[["ElectroStock Business Report",month],[],["SUMMARY","VALUE"],...Object.entries(totals),[],["PRODUCT","UNITS SOLD","REVENUE","GROSS PROFIT"],...Object.entries(productMap).map(([n,v])=>[n,v.units,v.revenue,v.profit])];
-    const csv="\\uFEFF"+data.map(row=>row.map(csvCell).join(",")).join("\\r\\n");
+    const csv="\uFEFF"+data.map(row=>row.map(csvCell).join(",")).join("\r\n");
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download="ElectroStock-business-report-"+month+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Business report exported for Excel.");
   }
