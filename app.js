@@ -906,7 +906,7 @@
       ? "Pro active · "+teamMembers.length+" staff account"+(teamMembers.length===1?"":"s")+" in use. Unlimited staff accounts included."
       : "Free plan · "+teamMembers.length+" of 1 included staff account used. Upgrade to Pro for unlimited staff.";
     const inviteButton=$("inviteStaffBtn");
-    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=1;inviteButton.disabled=false;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";inviteButton.classList.toggle("secondary",blocked);inviteButton.setAttribute("aria-label",blocked?"Open Premium upgrade options":"Invite staff");}
+    if(inviteButton){const blocked=!premiumStaffPlan&&teamMembers.length>=1;inviteButton.disabled=false;inviteButton.textContent=blocked?"Upgrade to add staff":"Invite staff";inviteButton.classList.toggle("secondary",blocked);inviteButton.setAttribute("aria-label",blocked?"Upgrade to ElectroStock Pro":"Invite staff");}
     $("announcementForm").classList.toggle("hidden",!["owner","manager"].includes(currentRole));
   }
   function showTeamTab(tab){document.querySelectorAll("[data-team-tab]").forEach(b=>b.classList.toggle("active",b.dataset.teamTab===tab));["staff","announcements","attendance"].forEach(n=>$("team"+({staff:"Staff",announcements:"Announcements",attendance:"Attendance"}[n])+"Panel").classList.toggle("hidden",n!==tab));if(tab==="chat")openTeamChat();else closeTeamChat();}
@@ -1070,7 +1070,7 @@
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
   $("searchInput").addEventListener("input",renderProducts);$("categoryFilter").addEventListener("change",renderProducts);$("stockFilter").addEventListener("change",renderProducts);
   $("exportBtn").addEventListener("click",()=>{if(!hasActiveProSubscription()){toast("Inventory exports are available on ElectroStock Pro.");switchView("settings");return;}exportInventory();});
-  $("importBtn").addEventListener("click",()=>{if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
+  $("importBtn").addEventListener("click",()=>{if(!hasActiveProSubscription()){toast("Excel inventory import is available on ElectroStock Pro.");switchView("settings");return;}if(!window.XLSX){alert("The Excel import library could not load. Refresh the page and try again.");return;} $("importFileInput").click();});
   $("importFileInput").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const btn=$("importBtn");btn.disabled=true;btn.textContent="Importing…";try{await importInventory(file);}catch(error){console.error("ElectroStock import failed:",error);alert("Import failed: "+(error?.message||"Please check your Excel file and try again."));}finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Excel';e.target.value="";}});
   $("salesSearch").addEventListener("input",renderSales);
   $("salesMonthFilter").addEventListener("change",renderSales);
