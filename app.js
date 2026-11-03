@@ -8,6 +8,7 @@
   let attendanceQrToken = null, attendanceQrStoreId = null, attendanceActionInProgress = false;
   let logoSubscription = {active:false, expires_at:null, error:null};
   let teamDataInitialized=false, notificationRefreshInProgress=false;
+  let isPlatformAdmin=false;
   let supportTickets=[], supportMessages=[], activeSupportTicketId=null, isSupportAdmin=false;
   const defaultSettings = {company_name:"ElectroStock", phone:"", email:"", address:"", currency:"NGN", logo_url:"", receipt_footer:"Thank you for your patronage!"};
   let companySettings = {...defaultSettings};
@@ -191,8 +192,30 @@
     }
   });
   $("logoutBtn").addEventListener("click",async()=>{stopTeamMessageNotifications();if(supabase&&!localMode)await supabase.auth.signOut();session=null;chatUnreadCount=0;seenChatMessageIds.clear();chatSeenInitialized=false;teamDataInitialized=false;updateChatBadge();showAuth();setAuthMode("login");});
+
+  async function loadSuperAdminDashboard(){
+    if(!isPlatformAdmin||!supabase||localMode)return;
+    const message=$("adminDashboardMessage");message.textContent="Loading secure platform metrics…";
+    const {data,error}=await supabase.rpc("get_platform_admin_overview");
+    if(error){message.textContent="Platform metrics are not available yet. Confirm the Super Admin SQL migration has been run in Supabase.";console.error("Super Admin overview failed:",error);return;}
+    $("adminUserCount").textContent=Number(data?.registered_accounts||0).toLocaleString("en-NG");
+    $("adminBusinessCount").textContent=Number(data?.businesses||0).toLocaleString("en-NG");
+    $("adminSalesCount").textContent=Number(data?.sales_transactions||0).toLocaleString("en-NG");
+    $("adminSupportCount").textContent=data?.support_tickets==null?"—":Number(data.support_tickets).toLocaleString("en-NG");
+    message.textContent="Metrics refreshed: "+new Date().toLocaleString("en-NG");
+  }
+  async function checkPlatformAdmin(){
+    isPlatformAdmin=false;$("superAdminNav").classList.add("hidden");
+    if(localMode||!session?.user?.id)return;
+    const {data,error}=await supabase.rpc("is_platform_admin");
+    if(error){console.warn("Super Admin access check unavailable:",error.message);return;}
+    isPlatformAdmin=data===true;
+    $("superAdminNav").classList.toggle("hidden",!isPlatformAdmin);
+    if(!isPlatformAdmin&&new URLSearchParams(location.search).get("admin")==="1")toast("This account is not authorised for Super Admin access.");
+  }
   async function loadCloud(options={}){
     if(localMode||!session?.user?.id)return;
+    await checkPlatformAdmin();
     teamOwnerId=session.user.id;currentRole="owner";
     const membership=await supabase.from("store_members").select("owner_id,role").eq("user_id",session.user.id).maybeSingle();
     if(membership.data){teamOwnerId=membership.data.owner_id;currentRole=membership.data.role||"sales_rep";}
@@ -933,7 +956,7 @@
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
   // Support Centre ticket handlers are disabled while the page displays Coming Soon.
-  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
+  function switchView(view){document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports",superadmin:"Super Admin"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="superadmin"){if(!isPlatformAdmin){switchView("dashboard");toast("Access denied.");return;}loadSuperAdminDashboard();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
