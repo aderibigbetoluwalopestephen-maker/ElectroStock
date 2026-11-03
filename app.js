@@ -1306,9 +1306,22 @@
     const icon=button?.querySelector("i");if(icon)icon.className="fa-solid "+(mode==="light"?"fa-moon":"fa-sun");
   }
   applyAppearance();
-  $("themeToggleBtn")?.addEventListener("click",()=>{
+  // Delegate the click so the control continues working even if the Settings
+  // section is re-rendered after the page loads.
+  document.addEventListener("click",event=>{
+    const toggle=event.target.closest("#themeToggleBtn");
+    if(!toggle)return;
+    event.preventDefault();
     const next=document.documentElement.dataset.theme==="light"?"dark":"light";
-    localStorage.setItem(appearanceKey,next);applyAppearance();
+    document.documentElement.dataset.theme=next;
+    const label=$("themeToggleLabel");
+    if(label)label.textContent=next==="light"?"Switch to night mode":"Switch to day mode";
+    toggle.setAttribute("aria-pressed",String(next==="light"));
+    toggle.setAttribute("aria-label",next==="light"?"Switch to night mode":"Switch to day mode");
+    const icon=toggle.querySelector("i");
+    if(icon)icon.className="fa-solid "+(next==="light"?"fa-moon":"fa-sun");
+    try{localStorage.setItem(appearanceKey,next);}
+    catch(storageError){console.warn("ElectroStock could not save the appearance preference:",storageError);}
   });
   $("settingsForm")?.addEventListener("submit",async event=>{
     event.preventDefault();
