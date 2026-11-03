@@ -523,6 +523,42 @@
       empty.querySelector("p").textContent="Record a sale to see revenue and receipts here.";
     }
   }
+  function renderReports(){
+    const month=$("businessReportMonth")?.value||currentMonthKey();
+    const rows=(sales||[]).filter(s=>monthMatches(s.created_at,month));
+    const revenue=rows.reduce((n,s)=>n+Number(s.total_amount||0),0);
+    const profit=rows.reduce((n,s)=>n+Number(s.gross_profit||0),0);
+    const units=rows.reduce((n,s)=>n+Number(s.quantity||0),0);
+    $("reportRevenue").textContent=money(revenue);
+    $("reportProfit").textContent=money(profit);
+    $("reportTransactions").textContent=rows.length.toLocaleString("en-NG");
+    $("reportUnits").textContent=units.toLocaleString("en-NG");
+    const daily={};
+    rows.forEach(s=>{const d=new Date(s.created_at);if(Number.isNaN(d.getTime()))return;const key=d.toLocaleDateString("en-NG",{day:"numeric",month:"short"});daily[key]=(daily[key]||0)+Number(s.total_amount||0);});
+    const days=Object.entries(daily);
+    const max=Math.max(1,...days.map(([,v])=>v));
+    $("reportDailyChart").innerHTML=days.length?days.map(([day,value])=>`<div class="report-bar-row"><span>${esc(day)}</span><div class="report-bar-track"><i style="width:${Math.max(2,value/max*100)}%"></i></div><strong>${money(value)}</strong></div>`).join(""):'<p class="muted">No daily revenue recorded for this month.</p>';
+    const payments={};
+    rows.forEach(s=>{const method=String(s.payment_method||"Not recorded").replace(/</g,"&lt;");payments[method]=(payments[method]||0)+Number(s.total_amount||0);});
+    $("reportPayments").innerHTML=Object.entries(payments).length?Object.entries(payments).map(([method,value])=>`<div class="report-breakdown-row"><span>${method}</span><strong>${money(value)}</strong></div>`).join(""):'<p class="muted">No payment method data recorded for this month.</p>';
+    const grouped={};
+    rows.forEach(s=>{const key=s.product_id||s.product_name||"unknown";if(!grouped[key])grouped[key]={name:s.product_name||"Product",quantity:0,revenue:0,profit:0};grouped[key].quantity+=Number(s.quantity||0);grouped[key].revenue+=Number(s.total_amount||0);grouped[key].profit+=Number(s.gross_profit||0);});
+    const top=Object.values(grouped).sort((a,b)=>b.quantity-a.quantity).slice(0,10);
+    $("reportTopProducts").innerHTML=top.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.quantity}</td><td>${money(p.revenue)}</td><td>${money(p.profit)}</td></tr>`).join("");
+    $("reportEmpty").classList.toggle("hidden",top.length>0);
+  }
+  function renderPos(){
+    const query=($("posSearch")?.value||"").trim().toLowerCase();
+    const available=(products||[]).filter(p=>Number(p.quantity)>0&&[p.name,p.brand,p.model,p.category].join(" ").toLowerCase().includes(query));
+    const results=$("posProductResults");
+    if(results)results.innerHTML=available.length?available.map(p=>`<div class="pos-product-result"><div><strong>${esc(p.name)}</strong><small>${esc(p.category||"Product")} · ${Number(p.quantity)} available</small></div><strong>${money(p.selling_price)}</strong></div>`).join(""):'<div class="empty-state"><p>No available products match your search.</p></div>';
+    if($("posCartCount"))$("posCartCount").textContent=posCart.length;
+    if($("posCartItems"))$("posCartItems").innerHTML=posCart.length?'<div class="empty-state"><p>Your cart is ready for checkout.</p></div>':'<div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div>';
+    const total=posCart.reduce((sum,item)=>sum+Number(item.selling_price||0)*Number(item.quantity||0),0);
+    if($("posSubtotal"))$("posSubtotal").textContent=money(total);
+    if($("posTotal"))$("posTotal").textContent=money(total);
+    if($("posCompleteBtn"))$("posCompleteBtn").disabled=posCart.length===0;
+  }
   function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();updateProFeatureAccess();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
