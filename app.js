@@ -453,7 +453,7 @@
       else products.unshift({...data,id:crypto.randomUUID(),created_at:new Date().toISOString()});
       saveLocal();return {error:null};
     }
-    const result=id?await supabase.from("products").update(data).eq("id",id).select().single():await supabase.from("products").insert({...data,owner_id:session.user.id}).select().single();
+    const result=id?await supabase.from("products").update(data).eq("id",id).select().single():await supabase.from("products").insert({...data,owner_id:teamOwnerId||session.user.id}).select().single();
     return result;
   }
   async function deleteProduct(id){
@@ -1199,6 +1199,7 @@
     }catch(error){console.error("Support reply failed:",error);feedback.textContent=error.message||"Could not send your message.";}
     finally{button.disabled=false;button.textContent="Send message";}
   });
+  $("supportRefreshBtn")?.addEventListener("click",()=>loadSupportData());
   $("supportAdminStatus")?.addEventListener("change",async()=>{
     if(!isSupportAdmin||!activeSupportTicketId)return;
     const {error}=await supabase.from("support_tickets").update({status:$("supportAdminStatus").value,updated_at:new Date().toISOString()}).eq("id",activeSupportTicketId);
@@ -1364,7 +1365,7 @@
     }
     const delta=type==="purchase"?qty:qty,updated={...p,quantity:Number(p.quantity)+delta};
     if(localMode){products=products.map(x=>x.id===id?updated:x);movements.unshift({id:crypto.randomUUID(),product_id:id,product_name:p.name,movement_type:type,quantity_change:delta,note:note||null,created_at:new Date().toISOString()});saveLocal();}
-    else{const {error}=await supabase.from("products").update({quantity:updated.quantity}).eq("id",id);if(error){$("stockMessage").textContent=error.message;return;}const {error:me}=await supabase.from("stock_movements").insert({owner_id:session.user.id,product_id:id,movement_type:type,quantity_change:delta,note:note||null});if(me){toast("Quantity updated, but movement log failed: "+me.message);}await loadCloud();}
+    else{const {error}=await supabase.from("products").update({quantity:updated.quantity}).eq("id",id);if(error){$("stockMessage").textContent=error.message;return;}const {error:me}=await supabase.from("stock_movements").insert({owner_id:teamOwnerId||session.user.id,product_id:id,movement_type:type,quantity_change:delta,note:note||null});if(me){toast("Quantity updated, but movement log failed: "+me.message);}await loadCloud();}
     $("stockForm").reset();$("customerFieldWrap").classList.add("hidden");renderAll();$("stockMessage").textContent="Stock movement saved.";toast("Stock updated successfully.");
   });
 
