@@ -182,11 +182,18 @@
       if(sessionError)throw sessionError;
       session=s;
       await syncRealtimeAuth(session);
-      supabase.auth.onAuthStateChange((event,s)=>{
-        session=s;
-        if(s?.access_token&&supabase.realtime?.setAuth)supabase.realtime.setAuth(s.access_token).catch(error=>console.error("ElectroStock Realtime session update failed:",error));
+      // Track authentication changes here, but do not reload the entire
+      // workspace for INITIAL_SESSION or TOKEN_REFRESHED. The initial page load
+      // and the sign-in form each load cloud data themselves. Reloading from
+      // this callback caused overlapping loadCloud() calls during refreshes and
+      // could interrupt settings/product operations.
+      supabase.auth.onAuthStateChange((event,nextSession)=>{
+        session=nextSession;
+        if(nextSession?.access_token&&supabase.realtime?.setAuth){
+          supabase.realtime.setAuth(nextSession.access_token).catch(error=>console.error("ElectroStock Realtime session update failed:",error));
+        }
         if(event==="PASSWORD_RECOVERY"){openPasswordReset();return;}
-        if(s){setTimeout(async()=>{await syncRealtimeAuth(s);showApp();await loadCloud();},0);}else if(event==="SIGNED_OUT"){showAuth();}
+        if(event==="SIGNED_OUT"){showAuth();}
       });
       if(session){
         showApp();await loadCloud();
