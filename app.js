@@ -1151,6 +1151,7 @@
     applyCompanyBranding();
     const receiptRef=sale.receipt_number||items[0]?.receipt_number||"—";
     const isInvoice=documentType==="invoice";
+    $("receiptModal").querySelector(".receipt-card").classList.toggle("invoice-mode",isInvoice);
     $("receiptDocumentType").textContent=isInvoice?"SALES INVOICE":"SALES RECEIPT";
     $("receiptSubtitle").textContent=isInvoice?"Invoice for goods sold":"Thank you for your purchase";
     $("receiptNumberLabel").textContent=isInvoice?"Invoice no.":"Receipt no.";
