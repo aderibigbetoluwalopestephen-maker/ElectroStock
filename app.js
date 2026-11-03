@@ -161,11 +161,22 @@
     const callbackError=callbackParams.get("error_description")||callbackParams.get("error");
     if(configured && window.supabase){
       const authStorage=window.localStorage;
-      // Persist the signed-in session in first-party browser storage across reloads.
-      try{authStorage.setItem("electrostock-storage-check","1");authStorage.removeItem("electrostock-storage-check");}
-      catch(storageError){throw new Error("Browser storage is blocked. Allow site data/local storage for ElectroStock, then reload.");}
+      // Keep the standard Supabase project storage key so existing sessions remain
+      // available after upgrades. Migrate sessions saved by the earlier custom key.
+      try{
+        authStorage.setItem("electrostock-storage-check","1");
+        authStorage.removeItem("electrostock-storage-check");
+        const projectRef=new URL(config.supabaseUrl).hostname.split(".")[0];
+        const standardAuthKey="sb-"+projectRef+"-auth-token";
+        const previousAuthKey="electrostock-auth-v1";
+        if(!authStorage.getItem(standardAuthKey)&&authStorage.getItem(previousAuthKey)){
+          authStorage.setItem(standardAuthKey,authStorage.getItem(previousAuthKey));
+        }
+      }catch(storageError){
+        throw new Error("Browser storage is blocked. Allow site data/local storage for ElectroStock, then reload.");
+      }
       supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{
-        auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:authStorage,storageKey:"electrostock-auth-v1"}
+        auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:authStorage}
       });localMode=false;
       const {data:{session:s},error:sessionError}=await supabase.auth.getSession();
       if(sessionError)throw sessionError;
@@ -208,7 +219,7 @@
       try {
         if(configured && window.supabase && typeof window.supabase.createClient==="function") {
           supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{
-            auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"electrostock-auth-v1"}
+            auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:window.localStorage}
           });
         }
       } catch(initError) {
