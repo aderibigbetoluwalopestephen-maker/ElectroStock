@@ -39,6 +39,24 @@ create policy "Platform support admins read own record" on public.platform_suppo
 insert into public.platform_support_admins(user_id)
 select user_id from public.platform_admins on conflict (user_id) do nothing;
 
+-- ElectroStock Pro entitlements. Active legacy logo subscribers are carried over.
+create table if not exists public.pro_subscriptions (
+  owner_id uuid primary key references auth.users(id) on delete cascade,
+  status text not null default 'inactive' check (status in ('active','inactive','cancelled','expired')),
+  expires_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+alter table public.pro_subscriptions enable row level security;
+grant select on public.pro_subscriptions to authenticated;
+drop policy if exists "Owners read their Pro subscription" on public.pro_subscriptions;
+create policy "Owners read their Pro subscription" on public.pro_subscriptions
+ for select to authenticated using (owner_id=(select auth.uid()));
+insert into public.pro_subscriptions(owner_id,status,expires_at,updated_at)
+select owner_id,'active',expires_at,now() from public.logo_subscriptions
+where status='active' and expires_at>now()
+on conflict(owner_id) do update set status='active',
+ expires_at=greatest(public.pro_subscriptions.expires_at,excluded.expires_at),updated_at=now();
+
 create or replace function public.platform_admin_data(p_section text default 'overview')
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 declare v jsonb; v_support_count bigint := 0; v_active_subs bigint := 0;
@@ -60,8 +78,8 @@ begin
    ) q;
    return jsonb_build_object('accounts',v);
  elsif p_section='subscriptions' then
-   if to_regclass('public.logo_subscriptions') is null then return jsonb_build_object('subscriptions','[]'::jsonb); end if;
-   execute 'select coalesce(jsonb_agg(jsonb_build_object(''user_id'',u.id,''email'',u.email,''business_name'',coalesce(cs.company_name,''Not set''),''status'',coalesce(ls.status,''inactive''),''expires_at'',ls.expires_at,''updated_at'',ls.updated_at) order by u.created_at desc),''[]''::jsonb) from auth.users u left join public.logo_subscriptions ls on ls.owner_id=u.id left join public.company_settings cs on cs.owner_id=u.id' into v;
+   if to_regclass('public.pro_subscriptions') is null then return jsonb_build_object('subscriptions','[]'::jsonb); end if;
+   execute 'select coalesce(jsonb_agg(jsonb_build_object(''user_id'',u.id,''email'',u.email,''business_name'',coalesce(cs.company_name,''Not set''),''status'',coalesce(ls.status,''inactive''),''expires_at'',ls.expires_at,''updated_at'',ls.updated_at) order by u.created_at desc),''[]''::jsonb) from auth.users u left join public.pro_subscriptions ls on ls.owner_id=u.id left join public.company_settings cs on cs.owner_id=u.id' into v;
    return jsonb_build_object('subscriptions',v);
  elsif p_section='support' then
    if to_regclass('public.support_tickets') is null then return jsonb_build_object('tickets','[]'::jsonb); end if;
@@ -73,7 +91,7 @@ begin
    return jsonb_build_object('logs',v);
  else
    if to_regclass('public.support_tickets') is not null then execute 'select count(*) from public.support_tickets' into v_support_count; end if;
-   if to_regclass('public.logo_subscriptions') is not null then execute 'select count(*) from public.logo_subscriptions where status=''active'' and (expires_at is null or expires_at>now())' into v_active_subs; end if;
+   if to_regclass('public.pro_subscriptions') is not null then execute 'select count(*) from public.pro_subscriptions where status=''active'' and (expires_at is null or expires_at>now())' into v_active_subs; end if;
    select jsonb_build_object(
      'registered_accounts',(select count(*) from auth.users),
      'businesses',(select count(*) from public.company_settings),
@@ -109,15 +127,15 @@ begin
    insert into public.platform_audit_logs(admin_user_id,action,target_user_id,details)
    values(auth.uid(),p_action,v_target,jsonb_build_object('reason',v_reason));
    return jsonb_build_object('success',true,'status',v_status);
- elsif p_action='grant_logo_subscription' then
+ elsif p_action in ('grant_pro_subscription','grant_logo_subscription') then
    v_target := (p_payload->>'user_id')::uuid;
    if v_target is null or not exists(select 1 from auth.users where id=v_target) then raise exception 'Account not found.'; end if;
    v_expiry := now() + interval '30 days';
-   insert into public.logo_subscriptions(owner_id,status,expires_at,updated_at)
+   insert into public.pro_subscriptions(owner_id,status,expires_at,updated_at)
    values(v_target,'active',v_expiry,now())
    on conflict(owner_id) do update set status='active',expires_at=excluded.expires_at,updated_at=now();
    insert into public.platform_audit_logs(admin_user_id,action,target_user_id,details)
-   values(auth.uid(),'grant_logo_subscription',v_target,jsonb_build_object('expires_at',v_expiry,'duration_days',30,'manual_grant',true));
+   values(auth.uid(),'grant_pro_subscription',v_target,jsonb_build_object('expires_at',v_expiry,'duration_days',30,'manual_grant',true));
    return jsonb_build_object('success',true,'status','active','expires_at',v_expiry);
  elsif p_action='update_subscription' then
    v_target := (p_payload->>'user_id')::uuid;
