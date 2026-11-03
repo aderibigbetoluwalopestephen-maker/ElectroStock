@@ -555,3 +555,25 @@
 
 /* ElectroStock Pro feature indicator */
 .nav-item.pro-locked::after{content:"PRO";margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.06em;padding:3px 6px;border-radius:5px;background:rgba(45,155,112,.14);color:var(--green,#2d9b70)}
+
+/* Support Centre layout */
+.support-layout{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.15fr);gap:18px;align-items:start}
+.support-form,.support-reply-form{display:grid;gap:13px}
+.support-form label,.support-reply-form label{display:grid;gap:7px;font-weight:600;color:var(--text)}
+.support-form input,.support-form select,.support-form textarea,.support-reply-form textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);padding:11px 12px}
+.support-ticket-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);text-align:left}
+.support-ticket-row:hover,.support-ticket-row.selected{background:var(--accent-soft)}
+.support-ticket-main{display:grid;gap:5px;min-width:0}.support-ticket-main small,.support-ticket-meta small{color:var(--muted);font-size:11px}
+.support-ticket-meta{display:grid;justify-items:end;gap:5px;flex-shrink:0}
+.support-status{font-size:11px;font-weight:700;padding:5px 8px;border-radius:20px;background:var(--accent-soft)}
+.support-messages{display:grid;gap:12px;max-height:440px;overflow:auto;padding:12px 0 18px}
+.support-message{max-width:88%;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.support-message.mine{margin-left:auto;background:var(--accent-soft)}
+.support-message-head{display:flex;justify-content:space-between;gap:15px;font-size:11px;color:var(--muted);margin-bottom:7px}
+.support-message p{margin:0;line-height:1.6;overflow-wrap:anywhere}
+.support-admin-status{display:grid;gap:6px;font-size:12px;color:var(--muted)}
+.support-admin-status select{padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text)}
+.support-reply-actions{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.support-conversation{margin-top:18px}
+@media(max-width:900px){.support-layout{grid-template-columns:1fr}}
+@media(max-width:560px){.support-ticket-row{align-items:flex-start}.support-reply-actions{align-items:stretch;flex-direction:column}.support-message{max-width:100%}}
