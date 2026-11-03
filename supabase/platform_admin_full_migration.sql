@@ -50,7 +50,10 @@ alter table public.pro_subscriptions enable row level security;
 grant select on public.pro_subscriptions to authenticated;
 drop policy if exists "Owners read their Pro subscription" on public.pro_subscriptions;
 create policy "Owners read their Pro subscription" on public.pro_subscriptions
- for select to authenticated using (owner_id=(select auth.uid()));
+ for select to authenticated using (
+   owner_id=(select auth.uid())
+   or exists(select 1 from public.store_members sm where sm.owner_id=pro_subscriptions.owner_id and sm.user_id=(select auth.uid()))
+ );
 insert into public.pro_subscriptions(owner_id,status,expires_at,updated_at)
 select owner_id,'active',expires_at,now() from public.logo_subscriptions
 where status='active' and expires_at>now()
@@ -142,7 +145,7 @@ begin
    v_status := p_payload->>'status';
    if v_status not in ('active','inactive','cancelled','expired') then raise exception 'Invalid subscription status.'; end if;
    v_expiry := nullif(p_payload->>'expires_at','')::timestamptz;
-   insert into public.logo_subscriptions(owner_id,status,expires_at,updated_at)
+   insert into public.pro_subscriptions(owner_id,status,expires_at,updated_at)
    values(v_target,v_status,v_expiry,now())
    on conflict(owner_id) do update set status=excluded.status,expires_at=excluded.expires_at,updated_at=now();
    insert into public.platform_audit_logs(admin_user_id,action,target_user_id,details)
