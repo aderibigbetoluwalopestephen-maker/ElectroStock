@@ -58,14 +58,31 @@
 
 
       <section id="superadminView" class="view hidden">
-        <div class="section-intro"><div><p class="eyebrow">PLATFORM CONTROL</p><h1>Super Admin Dashboard</h1><p class="muted">Private platform overview for ElectroStock administration.</p></div><span class="live-pill"><i></i> Authorised administrator</span></div>
+        <div class="section-intro"><div><p class="eyebrow">PLATFORM CONTROL</p><h1>ElectroStock Administration</h1><p class="muted">Manage platform accounts, subscriptions, customer support and security.</p></div><span class="live-pill"><i></i> Private administrator</span></div>
         <div class="stats-grid superadmin-stats">
-          <article class="stat-card glass"><div class="stat-top"><span>Registered accounts</span><span class="stat-icon violet"><i class="fa-solid fa-users"></i></span></div><h2 id="adminUserCount">—</h2><p class="stat-foot">Supabase Auth accounts</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Registered accounts</span><span class="stat-icon violet"><i class="fa-solid fa-users"></i></span></div><h2 id="adminUserCount">—</h2><p class="stat-foot">All registered users</p></article>
           <article class="stat-card glass"><div class="stat-top"><span>Businesses</span><span class="stat-icon green"><i class="fa-solid fa-store"></i></span></div><h2 id="adminBusinessCount">—</h2><p class="stat-foot">Company workspaces</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Recorded sales</span><span class="stat-icon blue"><i class="fa-solid fa-receipt"></i></span></div><h2 id="adminSalesCount">—</h2><p class="stat-foot">Transactions across stores</p></article>
-          <article class="stat-card glass"><div class="stat-top"><span>Support tickets</span><span class="stat-icon orange"><i class="fa-solid fa-life-ring"></i></span></div><h2 id="adminSupportCount">—</h2><p class="stat-foot">Tickets, if Support Centre is enabled</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Sales transactions</span><span class="stat-icon blue"><i class="fa-solid fa-receipt"></i></span></div><h2 id="adminSalesCount">—</h2><p class="stat-foot" id="adminSalesVolume">Platform sales volume</p></article>
+          <article class="stat-card glass"><div class="stat-top"><span>Support tickets</span><span class="stat-icon orange"><i class="fa-solid fa-life-ring"></i></span></div><h2 id="adminSupportCount">—</h2><p class="stat-foot">Customer requests</p></article>
         </div>
-        <section class="panel glass"><div class="panel-heading"><div><h3>Platform administration</h3><p class="muted">Secure administration tools will be enabled as their server-side workflows are connected.</p></div></div><div class="admin-tool-grid"><article><i class="fa-solid fa-user-shield"></i><strong>Account oversight</strong><p>Review platform-wide account totals.</p></article><article><i class="fa-solid fa-credit-card"></i><strong>Subscription oversight</strong><p>Prepare subscription and payment monitoring.</p></article><article><i class="fa-solid fa-headset"></i><strong>Support operations</strong><p>Prepare a central support inbox.</p></article><article><i class="fa-solid fa-clipboard-list"></i><strong>Audit & security</strong><p>Keep privileged actions restricted and traceable.</p></article></div><p id="adminDashboardMessage" class="form-message" aria-live="polite"></p></section>
+        <div class="admin-quick-stats">
+          <article class="panel glass"><span>New accounts (30 days)</span><strong id="adminNewAccounts">—</strong></article>
+          <article class="panel glass"><span>Active subscriptions</span><strong id="adminActiveSubs">—</strong></article>
+          <article class="panel glass"><span>Suspended accounts</span><strong id="adminSuspended">—</strong></article>
+        </div>
+        <div class="admin-tabs" role="tablist" aria-label="Platform management">
+          <button class="admin-tab active" type="button" data-admin-section="overview"><i class="fa-solid fa-chart-line"></i> Overview</button>
+          <button class="admin-tab" type="button" data-admin-section="accounts"><i class="fa-solid fa-users"></i> Accounts</button>
+          <button class="admin-tab" type="button" data-admin-section="subscriptions"><i class="fa-solid fa-credit-card"></i> Subscriptions</button>
+          <button class="admin-tab" type="button" data-admin-section="support"><i class="fa-solid fa-headset"></i> Support</button>
+          <button class="admin-tab" type="button" data-admin-section="audit"><i class="fa-solid fa-shield-halved"></i> Audit log</button>
+        </div>
+        <section class="panel glass admin-workspace">
+          <div class="panel-heading"><div><h3 id="adminSectionTitle">Platform overview</h3><p class="muted" id="adminSectionDescription">Live platform-wide totals and activity.</p></div><button type="button" class="btn secondary" id="adminRefreshBtn"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+          <div id="adminSectionContent"><p class="muted">Select a management section above.</p></div>
+          <p id="adminDashboardMessage" class="form-message" aria-live="polite"></p>
+        </section>
+        <p class="tiny muted admin-note">Account suspension is enforced by the ElectroStock application session check. Subscription controls here manage the existing logo-subscription records; payment reconciliation requires a verified payment ledger integration.</p>
       </section>
       <section id="dashboardView" class="view">
         <div class="welcome-row"><div><h1>Good day <i class="fa-solid fa-hand-wave" aria-hidden="true"></i></h1><p class="muted">Here’s what’s happening with your inventory.</p></div><span class="live-pill"><i></i> Inventory overview</span></div>
