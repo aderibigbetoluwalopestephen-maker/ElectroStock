@@ -574,14 +574,55 @@
     const query=($("posSearch")?.value||"").trim().toLowerCase();
     const available=(products||[]).filter(p=>Number(p.quantity)>0&&[p.name,p.brand,p.model,p.category].join(" ").toLowerCase().includes(query));
     const results=$("posProductResults");
-    if(results)results.innerHTML=available.length?available.map(p=>`<div class="pos-product-result"><div><strong>${esc(p.name)}</strong><small>${esc(p.category||"Product")} · ${Number(p.quantity)} available</small></div><strong>${money(p.selling_price)}</strong></div>`).join(""):'<div class="empty-state"><p>No available products match your search.</p></div>';
-    if($("posCartCount"))$("posCartCount").textContent=posCart.length;
-    if($("posCartItems"))$("posCartItems").innerHTML=posCart.length?'<div class="empty-state"><p>Your cart is ready for checkout.</p></div>':'<div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div>';
+    if(results)results.innerHTML=available.length?available.map(p=>`<button type="button" class="pos-product-result" data-pos-add="${esc(p.id)}" aria-label="Add ${esc(p.name)} to cart"><span><strong>${esc(p.name)}</strong><small>${esc(p.category||"Product")} · ${Number(p.quantity)} available</small></span><span class="pos-product-price">${money(p.selling_price)} <i class="fa-solid fa-plus" aria-hidden="true"></i></span></button>`).join(""):'<div class="empty-state"><p>No available products match your search.</p></div>';
+    if($("posCartCount"))$("posCartCount").textContent=posCart.reduce((n,item)=>n+Number(item.quantity||0),0);
+    if($("posCartItems"))$("posCartItems").innerHTML=posCart.length?posCart.map(item=>`<div class="pos-cart-row"><div class="pos-cart-copy"><strong>${esc(item.name)}</strong><small>${money(item.selling_price)} each · ${money(Number(item.selling_price)*Number(item.quantity))}</small></div><div class="pos-quantity-controls"><button type="button" data-pos-minus="${esc(item.id)}" aria-label="Decrease ${esc(item.name)} quantity">−</button><span>${Number(item.quantity)}</span><button type="button" data-pos-plus="${esc(item.id)}" aria-label="Increase ${esc(item.name)} quantity">+</button><button type="button" class="pos-remove" data-pos-remove="${esc(item.id)}" aria-label="Remove ${esc(item.name)}">×</button></div></div>`).join(""):'<div class="empty-state"><h3>Your cart is empty</h3><p>Add products to begin a sale.</p></div>';
     const total=posCart.reduce((sum,item)=>sum+Number(item.selling_price||0)*Number(item.quantity||0),0);
     if($("posSubtotal"))$("posSubtotal").textContent=money(total);
     if($("posTotal"))$("posTotal").textContent=money(total);
     if($("posCompleteBtn"))$("posCompleteBtn").disabled=posCart.length===0;
   }
+  function addPosProduct(id){
+    const product=products.find(p=>String(p.id)===String(id));
+    if(!product){toast("This product is no longer available. Refresh the inventory.");return;}
+    const existing=posCart.find(item=>String(item.id)===String(id));
+    if(existing){if(Number(existing.quantity)>=Number(product.quantity)){toast("You cannot add more than the available stock.");return;}existing.quantity++;}
+    else{if(Number(product.quantity)<1){toast("This product is out of stock.");return;}posCart.push({id:product.id,name:product.name,brand:product.brand||null,model:product.model||null,selling_price:Number(product.selling_price||0),quantity:1});}
+    $("posMessage").textContent="";renderPos();
+  }
+  $("posProductResults")?.addEventListener("click",event=>{
+    const button=event.target.closest("[data-pos-add]");if(button)addPosProduct(button.dataset.posAdd);
+  });
+  $("posCartItems")?.addEventListener("click",event=>{
+    const button=event.target.closest("[data-pos-minus],[data-pos-plus],[data-pos-remove]");if(!button)return;
+    const id=button.dataset.posMinus||button.dataset.posPlus||button.dataset.posRemove;
+    const item=posCart.find(row=>String(row.id)===String(id));if(!item)return;
+    if(button.hasAttribute("data-pos-remove")||button.hasAttribute("data-pos-minus")&&item.quantity<=1)posCart=posCart.filter(row=>String(row.id)!==String(id));
+    else if(button.hasAttribute("data-pos-minus"))item.quantity--;
+    else{const product=products.find(p=>String(p.id)===String(id));if(!product||item.quantity>=Number(product.quantity)){toast("You cannot exceed available stock.");return;}item.quantity++;}
+    renderPos();
+  });
+  $("clearPosCartBtn")?.addEventListener("click",()=>{posCart=[];$("posMessage").textContent="Cart cleared.";renderPos();});
+  $("posSearch")?.addEventListener("input",renderPos);
+  $("posCheckoutForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const message=$("posMessage"),button=$("posCompleteBtn");
+    if(!posCart.length){message.textContent="Add at least one product to the cart.";return;}
+    if(!localMode&&(!supabase||!session?.user?.id)){message.textContent="Your session is unavailable. Sign in again before completing this sale.";return;}
+    for(const item of posCart){const product=products.find(p=>String(p.id)===String(item.id));if(!product||Number(item.quantity)>Number(product.quantity)){message.textContent="Stock changed for "+item.name+". Refresh the cart and try again.";return;}}
+    const payload={p_customer_name:$("posCustomer").value.trim()||null,p_items:posCart.map(item=>({product_id:item.id,quantity:Number(item.quantity)})),p_note:$("posNote").value.trim()||null,p_payment_method:$("posPaymentMethod").value};
+    button.disabled=true;button.textContent="Processing sale…";message.textContent="";
+    try{
+      if(localMode)throw new Error("Multi-item checkout requires your connected Supabase workspace.");
+      const {data,error}=await supabase.rpc("record_sale_cart",payload);
+      if(error)throw error;
+      const soldItems=[...posCart];const total=soldItems.reduce((sum,item)=>sum+Number(item.selling_price)*Number(item.quantity),0);
+      await loadCloud({silent:true});
+      const receipt={id:data?.id||crypto.randomUUID(),receipt_number:data?.receipt_number||data?.[0]?.receipt_number||"ES-"+Date.now(),created_at:data?.created_at||data?.[0]?.created_at||new Date().toISOString(),customer_name:payload.p_customer_name||"Walk-in customer",payment_method:payload.p_payment_method,note:payload.p_note,total_amount:Number(data?.total_amount??data?.[0]?.total_amount??total),quantity:soldItems.reduce((n,item)=>n+item.quantity,0),product_name:soldItems.map(item=>item.name+" × "+item.quantity).join(", ")};
+      posCart=[];$("posCheckoutForm").reset();renderAll();message.textContent="Sale recorded successfully.";toast("Sale completed. Stock has been updated.");showReceipt(receipt);switchView("sales");
+    }catch(error){console.error("ElectroStock POS checkout failed:",error);message.textContent=error?.message||"Could not complete this sale. No items were removed from the cart.";}
+    finally{button.disabled=posCart.length===0;button.textContent="Complete sale";}
+  });
   function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();updateProFeatureAccess();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
