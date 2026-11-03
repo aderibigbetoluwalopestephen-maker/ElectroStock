@@ -160,8 +160,16 @@
     const callbackStatus=callbackParams.get("auth");
     const callbackError=callbackParams.get("error_description")||callbackParams.get("error");
     if(configured && window.supabase){
-      supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);localMode=false;
-      const {data:{session:s}}=await supabase.auth.getSession();session=s;
+      const authStorage=window.localStorage;
+      // Persist the signed-in session in first-party browser storage across reloads.
+      try{authStorage.setItem("electrostock-storage-check","1");authStorage.removeItem("electrostock-storage-check");}
+      catch(storageError){throw new Error("Browser storage is blocked. Allow site data/local storage for ElectroStock, then reload.");}
+      supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{
+        auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:authStorage,storageKey:"electrostock-auth-v1"}
+      });localMode=false;
+      const {data:{session:s},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError)throw sessionError;
+      session=s;
       await syncRealtimeAuth(session);
       supabase.auth.onAuthStateChange((event,s)=>{
         session=s;
@@ -199,7 +207,9 @@
     if(!localMode && (!supabase || !supabase.auth)) {
       try {
         if(configured && window.supabase && typeof window.supabase.createClient==="function") {
-          supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey);
+          supabase=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{
+            auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,storage:window.localStorage,storageKey:"electrostock-auth-v1"}
+          });
         }
       } catch(initError) {
         console.error("ElectroStock Supabase client initialization failed:",initError);
