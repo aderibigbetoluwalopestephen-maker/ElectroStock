@@ -1161,7 +1161,51 @@
     if(scroll)$("supportConversationPanel").scrollIntoView({behavior:"smooth",block:"start"});
   }
   // Support Centre ticket handlers are disabled while the page displays Coming Soon.
-  function switchView(view){if(view==="reports"&&!hasActiveProSubscription()){toast("Advanced Business Reports are available on ElectroStock Pro.");switchView("settings");return;}document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports",superadmin:"Super Admin"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="superadmin"){if(!isPlatformAdmin){switchView("dashboard");toast("Access denied.");return;}loadSuperAdminDashboard();}if(view==="settings")populateSettingsForm();if(view==="team"){showTeamTab("staff");loadTeamData();}}
+
+  // Customer Support Centre: tickets are shared with the platform support team.
+  $("supportCreateForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const msg=$("supportFormMessage"),button=$("supportCreateBtn");
+    if(localMode||!session?.user?.id){msg.textContent="Sign in to submit a support request.";return;}
+    const subject=$("supportSubject").value.trim(),body=$("supportInitialMessage").value.trim();
+    if(!subject||!body){msg.textContent="Enter a subject and describe the issue.";return;}
+    button.disabled=true;button.textContent="Submitting…";msg.textContent="";
+    try{
+      const ownerId=teamOwnerId||session.user.id;
+      const created=await supabase.from("support_tickets").insert({store_owner_id:ownerId,created_by:session.user.id,subject,category:$("supportCategory").value,priority:$("supportPriority").value}).select("id").single();
+      if(created.error)throw created.error;
+      const posted=await supabase.from("support_ticket_messages").insert({ticket_id:created.data.id,sender_id:session.user.id,message:body});
+      if(posted.error)throw posted.error;
+      $("supportCreateForm").reset();msg.textContent="Your support request has been sent.";
+      await loadSupportData();await openSupportTicket(created.data.id,false);toast("Support request submitted.");
+    }catch(error){console.error("Support ticket submission failed:",error);msg.textContent=error.message||"Could not submit your request.";}
+    finally{button.disabled=false;button.textContent="Submit request";}
+  });
+  $("supportReplyForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const message=$("supportReplyText").value.trim(),feedback=$("supportReplyMessage"),button=$("supportReplyBtn");
+    if(!activeSupportTicketId||!message){feedback.textContent="Enter a message before sending.";return;}
+    button.disabled=true;button.textContent="Sending…";feedback.textContent="";
+    try{
+      const posted=await supabase.from("support_ticket_messages").insert({ticket_id:activeSupportTicketId,sender_id:session.user.id,message});
+      if(posted.error)throw posted.error;
+      if(isSupportAdmin){
+        const status=$("supportAdminStatus").value;
+        const updated=await supabase.from("support_tickets").update({status,updated_at:new Date().toISOString()}).eq("id",activeSupportTicketId);
+        if(updated.error)throw updated.error;
+      }
+      $("supportReplyText").value="";await loadSupportData();await openSupportTicket(activeSupportTicketId,false);
+      feedback.textContent="Message sent.";toast("Support reply sent.");
+    }catch(error){console.error("Support reply failed:",error);feedback.textContent=error.message||"Could not send your message.";}
+    finally{button.disabled=false;button.textContent="Send message";}
+  });
+  $("supportAdminStatus")?.addEventListener("change",async()=>{
+    if(!isSupportAdmin||!activeSupportTicketId)return;
+    const {error}=await supabase.from("support_tickets").update({status:$("supportAdminStatus").value,updated_at:new Date().toISOString()}).eq("id",activeSupportTicketId);
+    if(error){$("supportReplyMessage").textContent=error.message;return;}
+    await loadSupportData();await openSupportTicket(activeSupportTicketId,false);
+  });
+  function switchView(view){if(view==="reports"&&!hasActiveProSubscription()){toast("Advanced Business Reports are available on ElectroStock Pro.");switchView("settings");return;}document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));$(view+"View").classList.remove("hidden");document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("pageTitle").textContent=({dashboard:"Dashboard",products:"Products",pos:"Point of Sale",sales:"Sales management",stock:"Stock movement",attendance:"My Attendance",team:"Staff & Team",settings:"Company settings",support:"Support centre",reports:"Business reports",superadmin:"Super Admin"}[view]||"Dashboard");$("sidebar").classList.remove("mobile-open");$("mobileMenuBtn").setAttribute("aria-expanded","false");const owner=currentRole==="owner";$("ownerGenerateAttendanceQrBtn").classList.toggle("hidden",!owner);$("startAttendanceScanBtn").classList.toggle("hidden",owner);if(view==="attendance"){$("attendanceScannerMessage").textContent=owner?"As the store owner, generate the store attendance QR code for your staff.":"Scan the QR code displayed at your workplace to clock in or clock out.";loadTeamData();}if(view==="superadmin"){if(!isPlatformAdmin){switchView("dashboard");toast("Access denied.");return;}loadSuperAdminDashboard();}if(view==="settings")populateSettingsForm();if(view==="support")loadSupportData();if(view==="team"){showTeamTab("staff");loadTeamData();}}
   document.querySelectorAll(".nav-item[data-view]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.go)));
   $("addProductTop").addEventListener("click",()=>openModal());$("addProductBtn").addEventListener("click",()=>openModal());$("emptyAddBtn").addEventListener("click",()=>openModal());
@@ -1238,6 +1282,49 @@
     if(help)help.textContent=active?"Pro active. PNG, JPG or WEBP, maximum 2 MB.":"Upgrade to Pro to upload a logo. PNG, JPG or WEBP, maximum 2 MB.";
   }
   document.addEventListener("click",e=>{if(!e.target.closest(".notification-wrap"))closeNotificationPanel();});
+
+
+  // Restore working Company Settings form submission and day/night appearance control.
+  const appearanceKey="electrostock_appearance";
+  function applyAppearance(){
+    const mode=localStorage.getItem(appearanceKey)==="light"?"light":"dark";
+    document.documentElement.dataset.theme=mode;
+    const button=$("themeToggleBtn"),label=$("themeToggleLabel");
+    if(button){button.setAttribute("aria-pressed",String(mode==="light"));button.setAttribute("aria-label",mode==="light"?"Switch to night mode":"Switch to day mode");}
+    if(label)label.textContent=mode==="light"?"Switch to night mode":"Switch to day mode";
+    const icon=button?.querySelector("i");if(icon)icon.className="fa-solid "+(mode==="light"?"fa-moon":"fa-sun");
+  }
+  applyAppearance();
+  $("themeToggleBtn")?.addEventListener("click",()=>{
+    const next=document.documentElement.dataset.theme==="light"?"dark":"light";
+    localStorage.setItem(appearanceKey,next);applyAppearance();
+  });
+  $("settingsForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const button=$("saveSettingsBtn"),message=$("settingsMessage");
+    if(currentRole!=="owner"){message.textContent="Only the Store Owner can save company settings.";return;}
+    if(!localMode&&(!supabase||!session?.user?.id)){message.textContent="Your session is not available. Please sign in again.";return;}
+    message.textContent="";button.disabled=true;button.textContent="Saving…";
+    try{
+      let logoUrl=companySettings.logo_url||"";
+      const file=$("settingLogoFile")?.files?.[0];
+      if(file){
+        if(!hasActiveProSubscription())throw new Error("Upgrade to Pro before uploading a company logo.");
+        const upload=await uploadCompanyLogo(file);if(upload.error)throw upload.error;logoUrl=upload.url||"";
+      }
+      const next={company_name:$("settingCompanyName").value.trim(),phone:$("settingPhone").value.trim(),email:$("settingEmail").value.trim(),address:$("settingAddress").value.trim(),currency:$("settingCurrency").value,logo_url:logoUrl,receipt_footer:$("settingReceiptFooter").value.trim()||defaultSettings.receipt_footer};
+      if(!next.company_name)throw new Error("Business name is required.");
+      if(localMode){companySettings={...defaultSettings,...next};saveLocal();}
+      else{
+        const {error}=await supabase.from("company_settings").upsert({...next,owner_id:teamOwnerId||session.user.id},{onConflict:"owner_id"});
+        if(error)throw new Error(error.message);
+        companySettings={...defaultSettings,...next};
+      }
+      applyCompanyBranding();populateSettingsForm();renderAll();
+      message.textContent="Company settings saved successfully.";toast("Company settings saved.");
+    }catch(error){console.error("ElectroStock settings save failed:",error);message.textContent=error?.message||"Could not save company settings.";}
+    finally{button.disabled=false;button.textContent="Save company settings";}
+  });
 
   function openModal(id=null){if(!canManageProducts()){toast("Only the owner or a manager can edit products.");return;}
     $("productForm").reset();$("productId").value="";$("productThreshold").value=3;$("productQty").value=0;$("productMessage").textContent="";$("modalTitle").textContent=id?"Edit product":"Add product";$("saveProductBtn").textContent=id?"Save changes":"Save product";
