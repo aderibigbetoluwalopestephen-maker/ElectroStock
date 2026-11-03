@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z5";
+const PRO_PLAN_CODE = "PLN_9nqo41emo5bu9z4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
