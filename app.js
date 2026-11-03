@@ -491,6 +491,38 @@
     else {const {error}=await supabase.from("products").delete().eq("id",id);if(error){toast(error.message);return;}await loadCloud();}
     renderAll();toast("Product deleted.");
   }
+  // Render the sales history safely during sign-in, refresh, and after inventory updates.
+  function renderSales(){
+    const table=$("salesTable"),empty=$("emptySales");
+    if(!table||!empty)return;
+    const query=($("salesSearch")?.value||"").trim().toLowerCase();
+    const month=$("salesMonthFilter")?.value||currentMonthKey();
+    const filtered=(sales||[]).filter(s=>{
+      const date=new Date(s.created_at||0);
+      const saleMonth=!Number.isNaN(date.getTime())?date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0"):"";
+      const searchable=[s.receipt_number,s.customer_name,s.product_name,s.brand,s.model].join(" ").toLowerCase();
+      return (!month||saleMonth===month)&&(!query||searchable.includes(query));
+    }).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+    table.innerHTML=filtered.map(s=>`<tr>
+      <td>${fmtDate(s.created_at||new Date())}</td>
+      <td>${esc(s.receipt_number||"—")}</td>
+      <td>${esc(s.product_name||"Product")}</td>
+      <td>${esc(s.customer_name||"Walk-in customer")}</td>
+      <td>${Number(s.quantity)||0}</td>
+      <td>${money(s.unit_selling_price||0)}</td>
+      <td><strong>${money(s.total_amount||0)}</strong></td>
+      <td>${money(s.gross_profit||0)}</td>
+      <td><span class="muted">Recorded</span></td>
+    </tr>`).join("");
+    empty.classList.toggle("hidden",filtered.length>0);
+    if(filtered.length===0&&sales.length>0){
+      empty.querySelector("h3").textContent="No matching sales";
+      empty.querySelector("p").textContent="Try another search or reporting month.";
+    }else{
+      empty.querySelector("h3").textContent="No sales recorded yet";
+      empty.querySelector("p").textContent="Record a sale to see revenue and receipts here.";
+    }
+  }
   function renderAll(){renderStats();renderProducts();renderRecent();renderAlerts();renderProductOptions();renderMovements();renderSales();renderReports();renderPos();applyCompanyBranding();updateProFeatureAccess();}
   function renderStats(){
     const total=products.length,units=products.reduce((a,p)=>a+Number(p.quantity||0),0),value=products.reduce((a,p)=>a+Number(p.quantity||0)*Number(p.purchase_price||0),0);
