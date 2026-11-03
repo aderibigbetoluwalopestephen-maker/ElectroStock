@@ -72,6 +72,7 @@
         ref:"ESP_"+session.user.id.replace(/-/g,"")+"_"+Date.now(),
         metadata:{feature:"electrostock_pro",owner_id:session.user.id,plan_code:config.paystackProPlanCode},
         callback:function(response){
+          (async()=>{
           setStatus("Payment received. Verifying securely…");
           try{
             if(!response?.reference)throw new Error("Paystack did not return a payment reference.");
@@ -88,6 +89,7 @@
             setStatus("Payment may have succeeded, but verification needs attention. Do not pay again. Contact support with reference: "+(response?.reference||"not provided")+". Details: "+(error?.message||"Unknown error"));
             toast("Payment verification needs attention. Do not pay again.");
           }finally{setBusy(false);updateProSubscriptionUI();}
+          })();
         },
         onClose:()=>{
           setBusy(false);
