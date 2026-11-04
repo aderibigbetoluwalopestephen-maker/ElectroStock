@@ -532,6 +532,7 @@
     companySettings={...defaultSettings,...(cs?.data||{})};
     proSubscription={active:!sub?.error && sub?.data?.status==="active" && !!sub.data.expires_at && new Date(sub.data.expires_at)>new Date(),expires_at:sub?.data?.expires_at||null,error:sub?.error?.message||null};
     if(sub?.error)console.error("Pro subscription status could not be loaded:",sub.error.message);
+    ensureDailyWelcomeMessage();
     ensureDailySubscriptionReminder();
     ensureWeeklyAndMonthlyMessages();
     renderAll();applyCompanyBranding();populateSettingsForm();
@@ -1025,13 +1026,21 @@
     unreadNotificationCount=notificationItems.filter(n=>!n.read).length;
     saveNotifications();renderNotifications();
   }
+  function ensureDailyWelcomeMessage(){
+    if(localMode||!session?.user?.id)return;
+    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"}).format(new Date());
+    const key="electrostock_new_day_"+session.user.id;
+    try{if(localStorage.getItem(key)===today)return;}catch{}
+    addNotification("Good morning! A new day awaits.","Start the day by checking your stock levels, reviewing sales, and keeping your business moving forward. Have a productive day with ElectroStock.","announcement");
+    try{localStorage.setItem(key,today);}catch(error){console.warn("Could not save the daily welcome message:",error);}
+  }
   function ensureDailySubscriptionReminder(){
     if(localMode||currentRole!=="owner"||hasActiveProSubscription()||proSubscription.error||!session?.user?.id)return;
-    const today=new Date().toLocaleDateString("en-CA");
+    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"}).format(new Date());
     const key="electrostock_subscription_reminder_"+session.user.id;
     try{if(localStorage.getItem(key)===today)return;}catch{}
     addNotification("Subscription reminder","Your ElectroStock Pro subscription is not active. Upgrade for advanced reports, unlimited products and staff, and custom business branding.","subscription");
-    try{localStorage.setItem(key,today);}catch{}
+    try{localStorage.setItem(key,today);}catch(error){console.warn("Could not save the subscription reminder date:",error);}
   }
   function ensureWeeklyAndMonthlyMessages(){
     if(localMode||!session?.user?.id)return;
