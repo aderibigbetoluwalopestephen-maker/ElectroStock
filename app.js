@@ -1040,10 +1040,10 @@
     let sentToday=false;
     try{sentToday=localStorage.getItem(key)===today;}catch(error){}
     if(sentToday){
-      const existing=notificationItems.find(item=>item.kind==="announcement"&&item.body===body&&item.created_at&&dateFormatter.format(new Date(item.created_at))===today);
+      const existing=notificationItems.find(item=>item.kind==="announcement"&&item.body===body&&item.date&&dateFormatter.format(new Date(item.date))===today);
       if(existing&&existing.title!==title){
         existing.title=title;
-        existing.created_at=now.toISOString();
+        existing.date=now.toISOString();
         saveNotifications();
         renderNotifications();
       }
@@ -1054,10 +1054,29 @@
   }
   function ensureDailySubscriptionReminder(){
     if(localMode||currentRole!=="owner"||hasActiveProSubscription()||proSubscription.error||!session?.user?.id)return;
-    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"}).format(new Date());
+    const now=new Date();
+    const dateFormatter=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"});
+    const today=dateFormatter.format(now);
+    const hourParts=new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Lagos",hour:"2-digit",hourCycle:"h23"}).formatToParts(now);
+    const hour=Number(hourParts.find(part=>part.type==="hour")?.value??0);
+    const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+    const title=greeting+"! Subscription reminder";
+    const body="Your ElectroStock Pro subscription is not active. Upgrade for advanced reports, unlimited products and staff, and custom business branding.";
     const key="electrostock_subscription_reminder_"+session.user.id;
-    try{if(localStorage.getItem(key)===today)return;}catch{}
-    addNotification("Subscription reminder","Your ElectroStock Pro subscription is not active. Upgrade for advanced reports, unlimited products and staff, and custom business branding.","subscription");
+    let sentToday=false;
+    try{sentToday=localStorage.getItem(key)===today;}catch(error){}
+    if(sentToday){
+      const existing=notificationItems.find(item=>item.kind==="subscription"&&item.body===body&&item.date&&dateFormatter.format(new Date(item.date))===today);
+      if(existing&&existing.title!==title){
+        existing.title=title;
+        existing.time=now.toLocaleTimeString("en-NG",{timeZone:"Africa/Lagos",hour:"2-digit",minute:"2-digit"});
+        existing.date=now.toISOString();
+        saveNotifications();
+        renderNotifications();
+      }
+      return;
+    }
+    addNotification(title,body,"subscription");
     try{localStorage.setItem(key,today);}catch(error){console.warn("Could not save the subscription reminder date:",error);}
   }
   function ensureWeeklyAndMonthlyMessages(){
