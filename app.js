@@ -1028,10 +1028,28 @@
   }
   function ensureDailyWelcomeMessage(){
     if(localMode||!session?.user?.id)return;
-    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"}).format(new Date());
+    const now=new Date();
+    const dateFormatter=new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Lagos"});
+    const today=dateFormatter.format(now);
+    const hourParts=new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Lagos",hour:"2-digit",hourCycle:"h23"}).formatToParts(now);
+    const hour=Number(hourParts.find(part=>part.type==="hour")?.value??0);
+    const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+    const title=greeting+"! A new day awaits.";
+    const body="Start the day by checking your stock levels, reviewing sales, and keeping your business moving forward. Have a productive day with ElectroStock.";
     const key="electrostock_new_day_"+session.user.id;
-    try{if(localStorage.getItem(key)===today)return;}catch{}
-    addNotification("Good morning! A new day awaits.","Start the day by checking your stock levels, reviewing sales, and keeping your business moving forward. Have a productive day with ElectroStock.","announcement");
+    let sentToday=false;
+    try{sentToday=localStorage.getItem(key)===today;}catch(error){}
+    if(sentToday){
+      const existing=notificationItems.find(item=>item.kind==="announcement"&&item.body===body&&item.created_at&&dateFormatter.format(new Date(item.created_at))===today);
+      if(existing&&existing.title!==title){
+        existing.title=title;
+        existing.created_at=now.toISOString();
+        saveNotifications();
+        renderNotifications();
+      }
+      return;
+    }
+    addNotification(title,body,"announcement");
     try{localStorage.setItem(key,today);}catch(error){console.warn("Could not save the daily welcome message:",error);}
   }
   function ensureDailySubscriptionReminder(){
