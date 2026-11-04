@@ -11,6 +11,7 @@ create table if not exists public.suspension_support_requests (
   admin_reply text,
   replied_at timestamptz,
   replied_by uuid references auth.users(id),
+  notification_sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
