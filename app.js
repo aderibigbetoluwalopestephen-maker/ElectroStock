@@ -464,8 +464,8 @@
       const oldLink=button.parentElement.querySelector("[data-admin-email-reply]");
       if(oldLink)oldLink.remove();
       const link=document.createElement("a");link.href=mailUrl;link.className="btn secondary small";link.textContent="Open email to send reply";link.setAttribute("data-admin-email-reply","true");button.parentElement.appendChild(link);
-      toast("Reply saved to the support request. Select “Open email to send reply” to email the customer.");
-      await loadAdminSection("support");
+      button.textContent="Reply saved";button.disabled=true;
+      toast("Reply saved. Select “Open email to send reply” to send it to the customer.");
     }
   });
   async function checkPlatformAdmin(){
