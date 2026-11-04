@@ -39,7 +39,7 @@ begin
   if p_message is null or char_length(trim(p_message)) not between 1 and 5000 then
     raise exception 'Enter a message (maximum 5000 characters).';
   end if;
-  if p_account_id is not null and not exists(select 1 from auth.users where id=p_account_id) then
+  if p_account_id is not null and not exists(select 1 from auth.users where id=p_account_id and lower(email)=lower(trim(p_email))) then
     p_account_id := null;
   end if;
   insert into public.suspension_support_requests(account_id,name,email,subject,message)
