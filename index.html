@@ -24,6 +24,20 @@
         <label id="confirmPasswordLabel" class="hidden">Confirm password<input id="confirmPassword" type="password" placeholder="Enter password again" autocomplete="new-password" minlength="6" disabled></label>
         <button class="btn primary full" type="submit" id="loginBtn">Sign in</button>
       </form>
+      <div class="suspension-support-entry">
+        <button id="showSuspensionSupport" class="text-btn" type="button">Contact support about a suspended account</button>
+      </div>
+      <form id="suspensionSupportForm" class="hidden" style="margin-top:16px;text-align:left">
+        <h3 style="margin:0 0 6px">Contact ElectroStock Support</h3>
+        <p class="tiny muted">Use this form if your business account has been suspended. You do not need to sign in.</p>
+        <label>Full name<input id="suspensionSupportName" type="text" maxlength="100" required autocomplete="name"></label>
+        <label>Email address<input id="suspensionSupportEmail" type="email" maxlength="254" required autocomplete="email"></label>
+        <label>Subject<input id="suspensionSupportSubject" type="text" maxlength="140" required placeholder="What do you need help with?"></label>
+        <label>Message<textarea id="suspensionSupportMessage" rows="4" maxlength="5000" required placeholder="Explain the issue with your account…"></textarea></label>
+        <button id="submitSuspensionSupport" class="btn primary full" type="submit">Submit support request</button>
+        <button id="hideSuspensionSupport" class="text-btn" type="button">Back to sign in</button>
+        <p id="suspensionSupportStatus" class="form-message" aria-live="polite"></p>
+      </form>
       <div class="auth-links"><button id="showSignup" class="text-btn" type="button">Create an owner account</button><button id="forgotPasswordBtn" class="text-btn" type="button">Forgot password?</button></div>
       <p id="authMessage" class="form-message" aria-live="polite"></p>
       <p class="tiny muted">Each business gets its own private account, inventory and company branding.</p>
