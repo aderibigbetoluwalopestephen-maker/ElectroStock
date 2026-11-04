@@ -242,8 +242,13 @@
       const {data,error}=await supabase.rpc("submit_suspension_support_request",payload);
       if(error)throw error;
       if(!data?.success)throw new Error(data?.message||"The request could not be saved.");
+      let emailNotice=" An email notification could not be confirmed; the request is still safely saved.";
+      try{
+        const emailResult=await supabase.functions.invoke("notify-suspension-support-email",{body:{request_id:data.request_id,mode:"new_request"}});
+        if(!emailResult.error&&emailResult.data?.success)emailNotice=" The support team has also been notified by email.";
+      }catch(emailError){console.warn("Suspension support email notification failed:",emailError);}
       $("suspensionSupportForm").reset();
-      status.textContent="Your support request has been submitted. Please keep an eye on your email for the administrator's response.";
+      status.textContent="Your support request has been submitted."+emailNotice;
       try{localStorage.removeItem("electrostock_suspended_contact");}catch(storageError){}
     }catch(error){
       console.error("Suspension support submission failed:",error);
@@ -455,17 +460,17 @@
       if(!reply?.trim())return;
       const status=document.querySelector('[data-suspension-status="'+requestId+'"]')?.value||"in_progress";
       button.disabled=true;
-      const {data,error}=await supabase.rpc("platform_admin_reply_suspension_request",{p_request_id:requestId,p_reply:reply.trim(),p_status:status});
+      const {error}=await supabase.rpc("platform_admin_reply_suspension_request",{p_request_id:requestId,p_reply:reply.trim(),p_status:status});
       if(error){toast("Could not save admin response: "+error.message);button.disabled=false;return;}
-      const email=button.dataset.requestEmail;
-      const subject="Re: "+button.dataset.requestSubject;
-      const mailBody="Hello,\n\n"+reply.trim()+"\n\nElectroStock Support";
-      const mailUrl="mailto:"+encodeURIComponent(email)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(mailBody);
-      const oldLink=button.parentElement.querySelector("[data-admin-email-reply]");
-      if(oldLink)oldLink.remove();
-      const link=document.createElement("a");link.href=mailUrl;link.className="btn secondary small";link.textContent="Open email to send reply";link.setAttribute("data-admin-email-reply","true");button.parentElement.appendChild(link);
+      const emailResult=await supabase.functions.invoke("notify-suspension-support-email",{body:{request_id:requestId,mode:"admin_reply",reply:reply.trim()}});
       button.textContent="Reply saved";button.disabled=true;
-      toast("Reply saved. Select “Open email to send reply” to send it to the customer.");
+      if(emailResult.error||!emailResult.data?.success){
+        toast("Reply saved in the dashboard, but email delivery failed. Check the notify-suspension-support-email Edge Function and its secrets.");
+        button.disabled=false;button.textContent="Retry email reply";
+        button.dataset.retryReply=reply.trim();
+      }else{
+        toast("Your reply was saved and emailed to the customer.");
+      }
     }
   });
   async function checkPlatformAdmin(){
