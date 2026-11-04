@@ -214,6 +214,42 @@
       $("showSignup").textContent="Open demo workspace";$("forgotPasswordBtn").classList.add("hidden");$("password").placeholder="Demo mode — any password";
     }
   }
+  function showSuspensionSupportForm(forceOpen=false){
+    const form=$("suspensionSupportForm"),button=$("showSuspensionSupport");
+    if(!form||!button)return;
+    let saved={};try{saved=JSON.parse(localStorage.getItem("electrostock_suspended_contact")||"{}");}catch(error){}
+    if(saved.name)$("suspensionSupportName").value=saved.name;
+    if(saved.email)$("suspensionSupportEmail").value=saved.email;
+    if(forceOpen){form.classList.remove("hidden");button.classList.add("hidden");}
+  }
+  $("showSuspensionSupport")?.addEventListener("click",()=>showSuspensionSupportForm(true));
+  $("hideSuspensionSupport")?.addEventListener("click",()=>{$("suspensionSupportForm").classList.add("hidden");$("showSuspensionSupport").classList.remove("hidden");});
+  $("suspensionSupportForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const status=$("suspensionSupportStatus"),submit=$("submitSuspensionSupport");
+    if(!supabase||localMode){status.textContent="Support requests require a connection to ElectroStock. Please try again when the service is available.";return;}
+    const saved=(()=>{try{return JSON.parse(localStorage.getItem("electrostock_suspended_contact")||"{}");}catch(error){return {};}})();
+    const payload={
+      p_account_id:saved.account_id||null,
+      p_name:$("suspensionSupportName").value.trim(),
+      p_email:$("suspensionSupportEmail").value.trim(),
+      p_subject:$("suspensionSupportSubject").value.trim(),
+      p_message:$("suspensionSupportMessage").value.trim()
+    };
+    if(!payload.p_name||!payload.p_email||!payload.p_subject||!payload.p_message){status.textContent="Complete all fields before submitting.";return;}
+    submit.disabled=true;submit.textContent="Submitting…";status.textContent="";
+    try{
+      const {data,error}=await supabase.rpc("submit_suspension_support_request",payload);
+      if(error)throw error;
+      if(!data?.success)throw new Error(data?.message||"The request could not be saved.");
+      $("suspensionSupportForm").reset();
+      status.textContent="Your support request has been submitted. Please keep an eye on your email for the administrator's response.";
+      try{localStorage.removeItem("electrostock_suspended_contact");}catch(storageError){}
+    }catch(error){
+      console.error("Suspension support submission failed:",error);
+      status.textContent="Could not submit your request: "+(error.message||"Please try again.");
+    }finally{submit.disabled=false;submit.textContent="Submit support request";}
+  });
   $("showSignup").addEventListener("click",async()=>{
     if(localMode){readLocal();showApp();toast("Demo workspace opened. Data stays in this browser.");return;}
     setAuthMode(authMode==="login"?"signup":"login");
@@ -338,8 +374,14 @@
       const rows=data.subscriptions||[];
       host.innerHTML=rows.length?'<div class="table-wrap"><table class="admin-table"><thead><tr><th>Business / account</th><th>Status</th><th>Expiry date</th><th>Actions</th></tr></thead><tbody>'+rows.map(s=>'<tr data-sub-row="'+esc(s.user_id)+'"><td><strong>'+esc(s.business_name)+'</strong><small>'+esc(s.email||"")+'</small></td><td><select class="admin-select" data-sub-status><option value="active" '+(s.status==="active"?"selected":"")+'>Active</option><option value="inactive" '+(s.status==="inactive"?"selected":"")+'>Inactive</option><option value="cancelled" '+(s.status==="cancelled"?"selected":"")+'>Cancelled</option><option value="expired" '+(s.status==="expired"?"selected":"")+'>Expired</option></select></td><td><input type="date" class="admin-date" data-sub-expiry value="'+(s.expires_at?new Date(s.expires_at).toISOString().slice(0,10):"")+'"></td><td><button class="btn primary small" data-admin-action="grant-subscription" data-user-id="'+esc(s.user_id)+'">Grant 30 days Pro</button> <button class="btn secondary small" data-admin-action="save-subscription" data-user-id="'+esc(s.user_id)+'">Save</button></td></tr>').join("")+'</tbody></table></div>':'<p class="muted">No registered accounts are available.</p>';
     }else if(section==="support"){
+      const requestsResult=await supabase.rpc("platform_admin_suspension_requests");
+      const requests=requestsResult.error?[]:(requestsResult.data?.requests||[]);
+      const requestPanel='<section class="admin-ticket-list"><h3>Suspended-account contact requests</h3><p class="muted">Requests submitted from the sign-in screen by customers who cannot access their accounts.</p>'+
+        (requests.length?requests.map(r=>'<article class="admin-ticket"><div class="admin-ticket-head"><div><strong>'+esc(r.subject)+'</strong><p>'+esc(r.name)+' · '+esc(r.email)+'</p></div><span class="admin-status '+(r.status==="resolved"?"good":r.status==="in_progress"?"pending":"danger")+'">'+esc(r.status.replace("_"," "))+'</span></div><div class="admin-ticket-meta">Account: '+esc(r.account_id||"Not linked")+' · Submitted '+esc(adminDate(r.created_at))+'</div><p style="white-space:pre-wrap">'+esc(r.message)+'</p>'+(r.admin_reply?'<div class="admin-overview-message"><div><strong>Latest admin reply</strong><p style="white-space:pre-wrap">'+esc(r.admin_reply)+'</p><small>'+esc(adminDate(r.replied_at))+'</small></div></div>':'')+'<div class="admin-ticket-controls"><select class="admin-select" data-suspension-status="'+esc(r.id)+'"><option value="open" '+(r.status==="open"?"selected":"")+'>Open</option><option value="in_progress" '+(r.status==="in_progress"?"selected":"")+'>In progress</option><option value="resolved" '+(r.status==="resolved"?"selected":"")+'>Resolved</option></select><button class="btn primary small" data-admin-action="reply-suspension-request" data-request-id="'+esc(r.id)+'" data-request-email="'+esc(r.email)+'" data-request-subject="'+esc(r.subject)+'">Reply to customer</button></div></article>').join(""):'<p class="muted">No suspended-account support requests yet.</p>')+'</section>';
       const rows=data.tickets||[];
-      host.innerHTML=rows.length?'<div class="admin-ticket-list">'+rows.map(t=>'<article class="admin-ticket"><div class="admin-ticket-head"><div><strong>'+esc(t.subject)+'</strong><p>'+esc(t.business_name)+' · '+esc(t.email||"")+'</p></div><span class="admin-status '+(t.status==="resolved"?"good":"pending")+'">'+esc(t.status)+'</span></div><div class="admin-ticket-meta">'+esc(t.category)+' · '+esc(t.priority)+' priority · Updated '+esc(adminDate(t.updated_at))+'</div><div class="admin-ticket-controls"><select class="admin-select" data-ticket-status="'+esc(t.id)+'"><option value="open" '+(t.status==="open"?"selected":"")+'>Open</option><option value="in_progress" '+(t.status==="in_progress"?"selected":"")+'>In progress</option><option value="resolved" '+(t.status==="resolved"?"selected":"")+'>Resolved</option></select><button class="btn primary small" data-admin-action="reply-ticket" data-ticket-id="'+esc(t.id)+'">View conversation / Reply</button></div></article>').join("")+'</div>':'<p class="muted">No support tickets found. If Support Centre has not been enabled in Supabase, apply its support migration first.</p>';
+      const existingPanel='<section class="admin-ticket-list"><h3>Existing Support Centre tickets</h3>'+
+        (rows.length?rows.map(t=>'<article class="admin-ticket"><div class="admin-ticket-head"><div><strong>'+esc(t.subject)+'</strong><p>'+esc(t.business_name)+' · '+esc(t.email||"")+'</p></div><span class="admin-status '+(t.status==="resolved"?"good":"pending")+'">'+esc(t.status)+'</span></div><div class="admin-ticket-meta">'+esc(t.category)+' · '+esc(t.priority)+' priority · Updated '+esc(adminDate(t.updated_at))+'</div><div class="admin-ticket-controls"><select class="admin-select" data-ticket-status="'+esc(t.id)+'"><option value="open" '+(t.status==="open"?"selected":"")+'>Open</option><option value="in_progress" '+(t.status==="in_progress"?"selected":"")+'>In progress</option><option value="resolved" '+(t.status==="resolved"?"selected":"")+'>Resolved</option></select><button class="btn primary small" data-admin-action="reply-ticket" data-ticket-id="'+esc(t.id)+'">View conversation / Reply</button></div></article>').join(""):'<p class="muted">No existing customer support tickets found.</p>')+'</section>';
+      host.innerHTML=requestPanel+existingPanel+(requestsResult.error?'<p class="form-message">Suspended-account requests are not enabled yet. Apply supabase/suspended_account_support_migration.sql. '+esc(requestsResult.error.message)+'</p>':'');
     }else if(section==="audit"){
       const rows=data.logs||[];
       host.innerHTML=rows.length?'<div class="table-wrap"><table class="admin-table"><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>'+rows.map(l=>'<tr><td>'+esc(adminDate(l.created_at))+'</td><td>'+esc(l.admin_email||"—")+'</td><td><strong>'+esc(l.action)+'</strong></td><td>'+esc(l.target_user_id||l.target_record_id||"—")+'</td><td>'+esc(JSON.stringify(l.details||{}))+'</td></tr>').join("")+'</tbody></table></div>':'<p class="muted">No administrator actions have been recorded yet.</p>';
@@ -407,6 +449,24 @@
       if(error){toast("Could not send reply: "+error.message);button.disabled=false;return;}
       toast("Support reply sent.");await loadAdminSection("support");await loadSuperAdminDashboard();
     }
+    else if(action==="reply-suspension-request"){
+      const requestId=button.dataset.requestId;
+      const reply=prompt("Write your response to "+button.dataset.requestEmail+":");
+      if(!reply?.trim())return;
+      const status=document.querySelector('[data-suspension-status="'+requestId+'"]')?.value||"in_progress";
+      button.disabled=true;
+      const {data,error}=await supabase.rpc("platform_admin_reply_suspension_request",{p_request_id:requestId,p_reply:reply.trim(),p_status:status});
+      if(error){toast("Could not save admin response: "+error.message);button.disabled=false;return;}
+      const email=button.dataset.requestEmail;
+      const subject="Re: "+button.dataset.requestSubject;
+      const mailBody="Hello,\n\n"+reply.trim()+"\n\nElectroStock Support";
+      const mailUrl="mailto:"+encodeURIComponent(email)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(mailBody);
+      const oldLink=button.parentElement.querySelector("[data-admin-email-reply]");
+      if(oldLink)oldLink.remove();
+      const link=document.createElement("a");link.href=mailUrl;link.className="btn secondary small";link.textContent="Open email to send reply";link.setAttribute("data-admin-email-reply","true");button.parentElement.appendChild(link);
+      toast("Reply saved to the support request. Select “Open email to send reply” to email the customer.");
+      await loadAdminSection("support");
+    }
   });
   async function checkPlatformAdmin(){
     isPlatformAdmin=false;$("superAdminNav").classList.add("hidden");
@@ -444,8 +504,10 @@
     }
     const suspensionCheck=await supabase.rpc("platform_admin_is_suspended");
     if(!suspensionCheck.error&&suspensionCheck.data===true){
+      try{localStorage.setItem("electrostock_suspended_contact",JSON.stringify({account_id:session.user.id,email:session.user.email||"",name:session.user.user_metadata?.full_name||""}));}catch(storageError){}
       await supabase.auth.signOut();session=null;showAuth();
-      authMessage("This ElectroStock account has been suspended. Contact support if you believe this is a mistake.");
+      authMessage("This ElectroStock account has been suspended. Submit a support request below if you believe this is a mistake.");
+      showSuspensionSupportForm(true);
       return;
     }
     teamOwnerId=session.user.id;currentRole="owner";
