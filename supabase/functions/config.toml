@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.scan-pay-verify]
 verify_jwt = false
+
+[functions.notify-suspension-support-email]
+verify_jwt = false
